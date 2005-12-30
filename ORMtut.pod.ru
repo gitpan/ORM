@@ -647,7 +647,7 @@ $M->_rev( 'Todo::Task' => 'worker' ) - это обратное метасвойство, т.е. объекты
 
 =head1 SEE ALSO
 
-http://www.sourceforge.net/perlorm/
+http://www.sourceforge.net/projects/perlorm/
 
 =head1 AUTHOR
 
