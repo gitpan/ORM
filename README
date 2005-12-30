@@ -1,0 +1,613 @@
+NAME
+    ORM - Object relational mapper for Perl.
+
+SYNOPSIS
+    Purpose of this document is to brief introduce usage of PerlORM library
+    on simple example. Example is 'Tasks Planner' (or 'Todo List')
+    application.
+
+LESSON 1: CREATING OBJECT MODEL
+    We wil start with simple object model, which will be improved and
+    modified as needed later. Object classes of our example application is:
+
+    1. Task
+        Properties:
+
+        * Title (title)
+        * Detailed description (desc)
+        * Task creation time (created)
+        * Task start time (start_date), can be undef
+        * Task end time (end_date), can be undef
+        * Task deadline (deadline), can be undef
+        * Responsible worker (worker)
+
+    2. Worker
+        Properties:
+
+        * Worker name (name)
+
+    First step in creation of object model is to create so called initial
+    class. Initial class is base class for all classes of our object model.
+
+    File Todo/ORM.pm
+
+      package Todo::ORM;
+
+      use ORM::Db::DBI::MySQL; # Using MySQL storage driver
+      use base 'ORM';
+
+      BEGIN
+      {
+          # _init method should be called in begin block of every 
+          # initial class.
+          ORM->_init
+          (
+              # Enable objects change history.
+              # If this parameter is omitted then history will
+              # be disabled for entire object model.
+              # See below about what class 'Todo::History' should
+              # look like.
+              history_class        => 'Todo::History',
+
+              # Do not use lazy objects load by default
+              prefer_lazy_load     => 0,
+
+              emulate_foreign_keys => 1,
+
+              default_cache_size   => 200,
+
+              # Initialization of storage driver
+              db => ORM::Db::DBI::MySQL->new
+              (
+                  host        => 'localhost',
+                  database    => 'todo_list',
+                  user        => 'root',
+                  password    => '',
+              ),
+          );
+      }
+
+      1;
+
+    Next step is to create "Todo::History" class. This class will be
+    responsible for storing objects change history. Class module content is
+    quite simple:
+
+    File Todo/History.pm
+
+      package Todo::History;
+
+      $VERSION=0.1;
+
+      use ORM::Base 'Todo::ORM', i_am_history=>1;
+  
+      1;
+
+    Now let's create all other classes of our model.
+
+    PerlORM does not require to declare class properties in both class
+    declaration and database. Creation of database table for storing objects
+    of the class is quite enough. Fields in this table will correspond to
+    object properties.
+
+    One or more database tables are assigned to each class (more than one
+    table is used in case of inheritance). Each object of the class is
+    represented by single row in table or rows inner join in case of
+    inheritance.
+
+    Initial declaration of classes also looks very simple:
+
+    File Todo/Task.pm
+
+       package Todo::Task;
+
+       $VERSION=0.1;
+
+       use ORM::Base 'Todo::ORM';
+
+    File Todo/Worker.pm
+
+       package Todo::Worker;
+
+       $VERSION=0.1;
+
+       use ORM::Base 'Todo::ORM';
+
+    There is one question: how PerlORM detects what table to use for certain
+    class? If table name is not specified obviously then ORM class calls
+    method "_guess_table_name" which is by default uses regexp "$class =~
+    s/::/_/g;" to detect table name from class name. You can change this
+    behaviour by overriding "_guess_table_name" method in your initial
+    class. For example:
+
+       sub _guess_table_name
+       {
+           my $my_class = shift;
+           my $class = shift;
+           my $table;
+
+           $table = substr( $class, index( $class, '::' )+2 );
+           $table =~ s/::/_/g;
+
+           return $table;
+       }
+
+    Now table for class "Todo::Task" should be named "Task" and not
+    "Todo_Task".
+
+    It's time to create database tables. (Name of database being used is
+    specified in storage driver constructor.)
+
+      CREATE DATABASE todo_list;
+
+      DROP TABLE IF EXISTS `todo_list`.`_ORM_refs`;
+      CREATE TABLE `_ORM_refs` (
+          `class` varchar(45) NOT NULL default '',
+          `prop`  varchar(45) NOT NULL default '',
+          `ref_class` varchar(45) NOT NULL default '',
+          PRIMARY KEY  (`class`,`prop`)
+      ) TYPE=InnoDB;
+
+      INSERT INTO '_ORM_refs' VALUES ( 'Todo::Task', 'worker', 'Todo::Worker' );
+
+      DROP TABLE IF EXISTS `todo_list`.`History`;
+      CREATE TABLE `History` (
+          `id` bigint(20) NOT NULL auto_increment,
+          `obj_class` varchar(100) NOT NULL default '',
+          `prop_name` varchar(100) NOT NULL default '',
+          `obj_id` int(11) NOT NULL default '0',
+          `old_value` varchar(255) default '',
+          `new_value` varchar(255) default '',
+          `date` datetime NOT NULL,
+          `editor` varchar(255) NOT NULL default '',
+          `slaved_by` bigint(20) unsigned default NULL,
+          PRIMARY KEY  (`id`)
+      ) TYPE=InnoDB;
+
+      DROP TABLE IF EXISTS `todo_list`.`Task`;
+      CREATE TABLE `task` (
+          `id` bigint(20) unsigned NOT NULL auto_increment,
+          `title` varchar(255) NOT NULL default '',
+          `desc` text NOT NULL,
+          `created` date default NULL,
+          `start_date` date default NULL,
+          `deadline` date default NULL,
+          `worker` bigint(20) unsigned default NULL,
+          PRIMARY KEY  (`id`)
+      ) TYPE=InnoDB;
+
+      DROP TABLE IF EXISTS `todo_list`.`Worker`;
+      CREATE TABLE `worker` (
+          `id` bigint(20) unsigned NOT NULL auto_increment,
+          `name` varchar(100) NOT NULL default '',
+          PRIMARY KEY  (`id`)
+      ) TYPE=InnoDB;
+
+    We just created 4 tables, first of them "_ORM_refs" is special table.
+    ORM uses it to detect links between classes in our model and with third
+    party classes. In our model "worker" property of class "Todo::Task"
+    should be reference of an object of class "Todo::Worker". To declare it
+    for ORM we should insert following row in "_ORM_refs":
+
+      class       | prop      | ref_class
+      ------------------------------------
+      Todo::Task  | worker    | Todo::Worker
+
+    For frequently used classes there is another way to define relations
+    between objects, this way is to override of "ORM::_db_type_to_class"
+    method in our initial class. "ORM::_db_type_to_class" accepts table
+    field name and type as its arguments and returns class assigned to
+    property.
+
+    "ORM::_db_type_to_class" defined in ORM class by default assigns classes
+    ORM::Date and ORM::Datetime to properties described by fields of type
+    "DATE" and "DATETIME" respectively.
+
+    Every table that is used with ORM should have acutoincremented field
+    "id" which stored ID of objects of corresponding class.
+
+LESSON 2: CREATING AND UPDATING OBJECTS
+    To manage objects of our model we will create two perl scripts, one for
+    create objects "new.pl" and second for updating "update.pl"
+
+    File new.pl
+
+      #!/usr/bin/perl
+      #
+      # Use: perl new.pl <Class> <Prop1Name> <Prop1Value> <Prop2Name> <Prop2Value>...
+      #
+      # Class - Name of the class without 'Todo::' prefix.
+      #
+
+      use lib "lib";
+      use lib "../ORM/lib";
+
+      $nick  = shift;
+      $class = "Todo::$nick";
+
+      eval "require $class" or die $@;
+
+      $error = ORM::Error->new;
+      %prop  = @ARGV;
+      $obj   = $class->new( prop=>\%prop, error=>$error );
+
+      if( $obj )
+      {
+          print "New $nick was created with id:".$obj->id."\n" if( $obj );
+          $obj->print;
+      }
+
+      print $error->text;
+
+    File update.pl
+
+      #!/usr/bin/perl
+      #
+      # Use: perl update.pl <Class> <ObjectID> <Prop1Name> <Prop1Value> <Prop2Name> <Prop2Value>...
+      #
+      # Class - Name of the class without 'Todo::' prefix.
+      #
+
+      use lib "lib";
+      use lib "../ORM/lib";
+
+      $nick  = shift;
+      $class = "Todo::$nick";
+
+      eval "require $class" or die $@;
+
+      $id    = shift;
+      $error = ORM::Error->new;
+      %prop  = @ARGV;
+      $obj   = $class->find_id( id=>$id, error=>$error );
+
+      if( $obj )
+      {
+          $obj->update( prop=>\%prop, error=>$error ) unless( $error->fatal );
+          print "Updated $nick with id:".$obj->id."\n";
+          $obj->print;
+      }
+      else
+      {
+          print STDERR "Object #$id of $class not found!\n";
+      }
+
+      print $error->text;
+
+    Both scripts use "print" method we doesn't declare yet. This method is
+    aimed to print plain text information about specified object. This
+    method should be defined in initial class so every object of our model
+    can acces it.
+
+      sub print
+      {
+          my $self  = shift;
+          my $ident = shift||0;
+          my @ref;
+
+          # Do not dive deeper that third level of recursion
+          # when printing information about related objects.
+
+          return if( $ident > 3 );
+
+          # Print information about specified object
+      
+          print ' 'x($ident*2),('-'x20),"\n";
+          for my $prop ( (ref $self)->_all_props )
+          {
+              printf "%".(20+$ident*2)."s %s\n", "$prop:", $self->_property_id( $prop );
+              if( (ref $self)->_prop_is_ref( $prop ) && $self->_property( $prop ) )
+              {
+                  push @ref, $self->_property( $prop );
+              }
+          }
+          print ' 'x($ident*2),('-'x20),"\n\n";
+
+          # Print information about related objects
+
+          for my $prop ( @ref )
+          {
+              print ' 'x(($ident+1)*2),"Related object '$prop':\n";
+              $prop->print( $ident+1 );
+          }
+      }
+
+    Now we can fill our model with some objects.
+
+      # perl new.pl Worker name "Eric Cartman"
+      New Worker was created with id:1
+      --------------------
+                       id: 1
+                    class: Todo::Worker
+                     name: Eric Cartman
+      --------------------
+  
+      # perl new.pl Worker name "Kenny McCormic"
+      New Worker was created with id:2
+      --------------------
+                       id: 2
+                    class: Todo::Worker
+                     name: Kenny McCormic
+      --------------------
+
+      # perl new.pl Task \
+            title "Kill Kenny" \
+            desc "Just kill Kenny!" \
+            worker 1 \
+            created "2005-12-18" \
+            start_date "2006-01-01" \
+            deadline "2006-01-02"
+
+      New Task was created with id:1
+      --------------------
+                       id: 1
+                    class: Todo::Task
+                  created: 2005-12-18
+                     desc: Just kill Kenny!
+                   worker: 1
+                 deadline: 2006-01-02
+                    title: Kill Kenny
+               start_date: 2006-01-01
+      --------------------
+
+        Related object 'worker':
+        --------------------
+                         id: 1
+                      class: Todo::Worker
+                       name: Eric Cartman
+        --------------------
+
+      # perl new.pl Task \
+            title "Eat Chocolate pie" \
+            desc "Ask your mummy." \
+            worker 1 \
+            created "2005-12-18" \
+            start_date "2006-01-01" \
+            deadline "2006-01-02"
+
+      New Task was created with id:2
+      --------------------
+                       id: 2
+                    class: Todo::Task
+                  created: 2005-12-18
+                     desc: Ask your mummy.
+                   worker: 1
+                 deadline: 2006-01-02
+                    title: Eat Chocolate pie
+               start_date: 2006-01-01
+      --------------------
+
+        Related object 'worker':
+        --------------------
+                         id: 1
+                      class: Todo::Worker
+                       name: Eric Cartman
+        --------------------
+
+    For more comfort let's modify "Todo::Task" class so it can assign
+    current time to "created" property when explicit value is not specified:
+
+      sub _validate_prop
+      {
+          my $self = shift;
+          my %arg  = @_;
+
+          if( ! $self->id && ! $self->created )
+          {
+              $self->_fix_prop
+              (
+                  prop  => { created=>ORM::Date->current },
+                  error => $arg{error},
+              );
+          }
+
+          $self->SUPER::_validate_prop( %arg );
+      }
+
+    * Method "_validate_prop" is implicitly called when new object is being
+    created ("new" method) and when object is being updated ("update"
+    method).
+    * Condition ( !$self->id ) means than object is not yet stored in
+    database table and therefore doesn't have ID assigned to it. In another
+    words this means than condition will be true only in "new" method.
+    * Method '_fix_prop' is intended to use only within "_validate_prop".
+    * Do not forget to call "SUPER::_validate_prop".
+
+    Let's add one more task:
+
+      # perl new.pl Task \
+            title "Keep alive" \
+            desc "Just keep alive!" \
+            worker 2 \
+            start_date "2005-12-31" \
+            deadline "2006-01-02"
+
+      New Task was created with id:3
+      --------------------
+                       id: 3
+                    class: Todo::Task
+                  created: 2005-12-18
+                     desc: Just keep alive!
+                   worker: 2
+                 deadline: 2006-01-02
+                    title: Keep alive
+               start_date: 2005-12-31
+      --------------------
+
+        Related object 'worker':
+        --------------------
+                         id: 2
+                      class: Todo::Worker
+                       name: Kenny McCormic
+        --------------------
+
+    As you can see "created" property is implicitly initialized with default
+    value of current time. (It seems like Kenny will die anyway after
+    deadline.)
+
+LESSON 3: SELECTING AND FILTERING
+    Now when we have some tasks planned for workers it's time to make some
+    reports about tasks state. Interesting reports are:
+
+    * Tasks planned to be done by specific worker
+    * Tasks that should be done due specified date
+
+    Tasks for first report can be selected as follows:
+
+      ORM::DbLog->write_to_stderr( 1 );
+      @tasks = Todo::Task->find
+      (
+          filter => ( Todo::Task->M->worker == $worker ),
+          error  => $error,
+      );
+
+    Todo::Task->M->worker - is so named Meta-property, Meta-property is
+    object of class "ORM::Metaprop" or its descendants. In resulting
+    SQL-query Meta-properties are replaced with names of corresponding table
+    fields. Special meta-property Todo::Task->M means object of class
+    <Todo::Task> itself. Below you will see that meta-properties is very
+    powerful facility and is also easy to use.
+
+    Variable $worker should contain "Todo::Worker" object or just its
+    integer ID.
+
+    Variable $error of type "ORM::Error" will contain description of error
+    if any occured during query. "error" parameter is not required, if it is
+    omitted then error is silently ignored. In future version this behavious
+    can be changed.
+
+    Call "ORM::DbLog"->write_to_stderr( 1 ) enables trace of so called
+    SQL-log to STDERR this is useful tool for debugging you code. In
+    described case (assuming $worker=1) SQL-log trace will look as follows:
+
+      --------------------------
+      [Mon Dec 26 00:14:27 2005]: ORM::find: Success
+      SELECT
+        DISTINCT `Task`.*
+      FROM
+        `Task`
+      WHERE
+        (`worker` = '1')
+
+    If we need to select tasks by worker name, then method call wiil look
+    like this:
+
+      @tasks = Todo::Task->find
+      (
+          filter => ( Todo::Task->M->worker->name eq $worker_name ),
+          order  => ORM::Order->new( [ Todo::Task->M->created, 'DESC' ] ),
+          error  => $error,
+      );
+
+    Draw attention on using of operators "==" and "eq". Databases usually
+    have no sence to this operator because in most cases they will be
+    translater to SQL "=" operator which is used for string and numeric
+    comparisons. Nevertheless for best readability it is reasonable to use
+    this operators as in native Perl.
+
+    Parameter 'order' specifies that found tasks should be sorted by
+    "created" time in descendant order.
+
+    Let's try little more complicated query when we need to find tasks
+    assigned for workers containing some string in their names:
+
+      @tasks = Todo::Task->find
+      (
+          filter => ( Todo::Task->M->worker->name->_like( '%Cartman%' ) ),
+          order  => ORM::Order->new( [ Todo::Task->M->created, 'DESC' ] ),
+          error  => $error,
+      );
+
+    Resulting SQL-query for the call:
+
+      SELECT
+        DISTINCT `_T1_Task`.*
+      FROM
+        `Task` AS `_T1_Task`
+          LEFT JOIN `Worker` AS `_T2_Worker` ON( `_T1_Task`.`worker`=`_T2_Worker`.`id` )
+      WHERE
+        (`_T2_Worker`.`name` LIKE '%Cartman%')
+      ORDER BY `_T1_Task`.`created` DESC
+
+    Call for second report looks much similar:
+
+      $M     = Todo::Task->M;
+      @tasks = Todo::Task->find( filter => ( $M->deadline < '2006-01-30' ) );
+
+    Variable $M is for brevity, such trick is useful when constructing
+    complex meta-expressions.
+
+    There is another interesting report is about number of tasks assigned to
+    each worker, for this report we will use "stat" method, This method is
+    useful when you need info about related objects:
+
+      $M   = Todo::Worker->M;
+      $res = Todo::Worker->stat
+      (
+          data =>
+          {
+              worker => $M,
+              tasks  => $M->_rev( 'Todo::Task' => 'worker' )->_count,
+          },
+          group_by => [ $M ],
+          preload  => { worker=>1 },
+      );
+
+    Opposite to "find" method which returns array of objects "stat" method
+    returns array of hashes with requested data.
+
+    Parameter "data" is hash reference that defines what of data should be
+    retrieved from database. Resulting hash will contain records with
+    exactly the same keys as in "data" parameter and with values retrieved
+    from database as specified by values of "data".
+
+    In out case $res will contain hashes with two keys "worker" -
+    "Todo::Worker" object and "tasks" - number of assigned tasks.
+
+    Parameter "group_by" similar to SQL "GROUP BY" statement. In resulting
+    SQL-query "group_by" will be replaced with "GROUP BY". It is used to
+    define how to apply grouping method "_count".
+
+    Parameter "preload" defines objects then should be loaded by resulting
+    query and not later by separate query.
+
+    Meta-property $M->_rev( 'Todo::Task' => 'worker' ) called reversive
+    meta-property it is used to access objects that refer to selected
+    objects by one of its property. In our case objects of class
+    "Todo::Task" referring to objects of class "Todo::Worker" by property
+    "worker", therefore we can reversively access tasks assigned to a
+    worker.
+
+    SQL-query for the call:
+
+      --------------------------
+      [Mon Dec 26 00:49:34 2005]: ORM::stat: Success
+      SELECT
+        'Todo::Worker' AS `_worker class`,
+        COUNT( `_T2_Task`.`id` ) AS `tasks`,
+        `_T1_Worker`.`id` AS `worker`,
+        `_T1_Worker`.`name` AS `_worker name`
+      FROM
+        `Worker` AS `_T1_Worker`
+          LEFT JOIN `Task` AS `_T2_Task` ON( `_T1_Worker`.`id`=`_T2_Task`.`worker` )
+      GROUP BY `_T1_Worker`.`id`
+
+LESSON 4: DELETING OBJECTS (In progress...)
+LESSON 5: ERROR HANDLING (In progress...)
+LESSON 6: TRANSACTIONS (In progress...)
+LESSON 7: LAZY LOAD (In progress...)
+LESSON 8: USING HISTORY (In progress...)
+LESSON 9: INHERITANCE (In progress...)
+LESSON 10: SOME REFACTORING (In progress...)
+SEE ALSO
+    http://www.sourceforge.net/perlorm/
+
+AUTHOR
+    Alexey V. Akimov
+
+COPYRIGHT AND LICENSE
+    Copyright (C) 2005 by Alexey V. Akimov
+
+    This library is free software; you can redistribute it and/or modify it
+    under the terms of LGPL licence.
+

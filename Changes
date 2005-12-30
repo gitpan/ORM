@@ -1,0 +1,55 @@
+Revision history for Perl extension ORM.
+
+0.8  Sun Dec  4 18:47:22 2005
+    - original version; created by h2xs 1.23 with options -AX -n ORM
+
+    New features:
+        - Implemented reverse properties
+        - Implemented object linking on arbitrary properties
+        - Modify '_db_type_to_class' to accepts field_name and field_type arguments
+        - Implement transactions
+        - Modify ORM->stat to add ability to load several objects by one query
+        - Use cache in ORM::Db::DBI->select_full
+        - Implement object cache
+        - Deny use of intermediate classes without their own tables, because in opposite case
+          when exist 2 intermediate classes derived from one base class
+          then search through one of child classes also finds objects of second class.
+        - Implement use of ORM::Expr with 'update'
+        - Add SQL logging feature to ORM::Db
+        - Implement separate layer for DB operations
+        - Autoreconnect to SQL server after "Mysql server has gone away"
+        - Add method ORM->stat()
+        - Feature to use sealed classes (when primary table does not contain class field)
+        - Argument lazy_load to ORM->stat(), which allows to use lazy loaded objects
+        - Lazy loaded objects, implement 2 variants:
+          - variant 1: known only 'id' and nothing loaded
+          - variant 2: loaded only tables of primary class
+        - Use of third party classes as object properties
+        - Calculated meta-properties (ORM::Metaprop incapsulates ORM::Expr)
+        - ORM should log changes history via ORM::History
+        - Initial class configuration:
+          - global parameter 'history_is_enabled'
+          - posibility to enable/disable hostory on per class basis
+          - global parameter 'emulate_foreign_keys'
+          - method 'new', 'update', 'delete' should accept argument to enable/disable history
+            for particular operation
+        - Implement object changes history
+        - Produce separate initial class from ORM for every separate object model
+        - Use ORM::Db->qt to quote table names, ORM::Db->qf to quote field names, ORM::Db->qi to quote aliases
+        - Use ORM::Db->qi to quote table names and field names
+        - Add redefineable method ORM->_db_type_to_class
+
+    Fixes:
+        - Delete method ORM::Metaprop->_expanded
+        - Reimplement table joins
+        - Fix automatic loading of related modules
+        - Modify 'update' method
+          - Wrong compare of properties: $arg{prop}->{$prop} ne $self->{_ORM_data}->{$prop}
+          - add check, whether object was changed after it was fetched from DB
+          - ability to update objetc only when its properties are equal to those assumed by user
+        - Fix _validate_prop
+        - Fix ORM::Tjoin
+        - ORM::History->rollback should delete rolled back history entries from 'history' table
+        - Replace calls to isa to UNIVERSAL::isa
+        - Stop using obsoletted ORM::db_auth
+        - Move automatic init of 'cdate' properties from ORM to my initial class;

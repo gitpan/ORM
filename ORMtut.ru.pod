@@ -1,0 +1,663 @@
+=head1 NAME
+
+ORM - Объектно реляционный маппер для Perl, предназначен для хранения и поиска
+объектов в базе данных.
+
+=head1 SYNOPSIS
+
+Целью данного документа является демонстрация использования ORM на простом
+примере. В качестве примера выбрано приложение "Планировщик заданий"
+(Todo List). Основное использование приложения Todo List - это создание
+различного рода отчетов о выполнении задач.
+
+=head1 УРОК 1: СОЗДАНИЕ МОДЕЛИ
+
+Будем отталкиваться от простой объектной модели, модифицируя ее по мере
+надобности. Итак, объектами модели являются:
+
+=over
+
+=item 1. Задача (Task)
+
+Свойства объектов класса:
+
+=over
+
+=item * Заголовок (title)
+
+=item * Детальное описание (desc)
+
+=item * Дата создания задачи (created)
+
+=item * Дата начала выполнения (start_date), может быть неопределенным
+
+=item * Дата завершения выполнения (end_date), может быть неопределенным
+
+=item * Дата запланированного завершения выполнения (deadline), может быть
+неопределенным
+
+=item * Ответственный работник
+
+=back
+
+=item 2. Работник (Worker)
+
+Свойства объектов класса:
+
+=over
+
+=item * Ф.И.О. (name)
+
+=back
+
+=back
+
+Первым шагом в использовании ORM является создание класса, который будет
+являтся базовым для всех классов нашей модели.
+Такой класс называется B<инициирующим> (B<initial>).
+
+Файл Todo/ORM.pm
+
+  package Todo::ORM;
+
+  use ORM::Db::DBI::MySQL; # Будет использоваться драйвер СУБД MySQL
+  use base 'ORM';
+
+  BEGIN
+  {
+      # Функция _init должна обязательно вызываться в BEGIN-блоке
+      # любого инициирующего класса.
+      ORM->_init
+      (
+          # Включить хранение истории изменения объектов.
+          # Если этот параметр опущен, история будет отключена.
+          # О том, что представляет из себя класс Todo::History
+          # ниже...
+          history_class        => 'Todo::History',
+
+          # Не использовать по умолчанию "ленивую загрузку"
+          prefer_lazy_load     => 0,
+
+          # Включить эмуляцию внешних ключей
+          emulate_foreign_keys => 1,
+
+          # Размер кеша объектов
+          default_cache_size   => 200,
+
+          # Используемый драйвер базы данных
+          db => ORM::Db::DBI::MySQL->new
+          (
+              host        => 'localhost',
+              database    => 'todo_list',
+              user        => 'root',
+              password    => '',
+          ),
+      );
+  }
+
+  1;
+
+Следующим шагом создадим класс C<Todo::History>, который 
+будет отвечать за историю изменения объектов.
+Выглядит этот класс крайне просто:
+
+  package Todo::History;
+
+  $VERSION=0.1;
+
+  use ORM::Base 'Todo::ORM', i_am_history=>1;
+  
+  1;
+
+Теперь займемся классами объектов.
+
+Библиотека ORM в отличие от аналогов, не требует описания хранимых
+свойств одновременно и в базе данных и в декларации класса.
+Вам достаточно создать таблицу для хранения объектов класса,
+поля в этой таблице будут соответствовать одноименным свойствам
+объектов класса.
+
+Каждому классу ставиться в соответствие одна или более таблиц
+(более одной таблицы используется в случае наследования).
+Каждому объекту класса - одна строка из таблицы (или строка из
+результирующей таблицы полученной с помощью INNER JOIN таблиц в
+случае наследования).
+
+Начальное объявление класов так же выглядит достаточно просто:
+
+Файл Todo/Task.pm
+
+   package Todo::Task;
+
+   $VERSION=0.1;
+
+   use ORM::Base 'Todo::ORM';
+
+Файл Todo/Worker.pm
+
+   package Todo::Worker;
+
+   $VERSION=0.1;
+
+   use ORM::Base 'Todo::ORM';
+
+Как же ORM определяет какие таблицы соответствуют описанным классам?
+По умолчанию, ORM получает имя таблицы из имени класса путем применения
+регулярного выражения C<$class =~ s/::/_/g;>
+
+Чтобы изменить это поведение необходимо добавить метод C<_guess_table_name>
+в класс Todo::ORM;
+
+   sub _guess_table_name
+   {
+       my $my_class = shift;
+       my $class = shift;
+       my $table;
+
+       $table = substr( $class, index( $class, '::' )+2 );
+       $table =~ s/::/_/g;
+
+       return $table;
+   }
+
+Теперь таблица для класса C<Todo::Task> будет называться не C<Todo_Task>,
+а просто C<Task>.
+
+Пришло время создать таблицы в БД.
+(Имя БД задается в инициирующем классе при инициализации используемого
+драйвера СУБД.)
+
+  CREATE DATABASE todo_list;
+
+  DROP TABLE IF EXISTS `todo_list`.`_ORM_refs`;
+  CREATE TABLE `_ORM_refs` (
+      `class` varchar(45) NOT NULL default '',
+      `prop`  varchar(45) NOT NULL default '',
+      `ref_class` varchar(45) NOT NULL default '',
+      PRIMARY KEY  (`class`,`prop`)
+  ) TYPE=InnoDB;
+
+  INSERT INTO '_ORM_refs' VALUES ( 'Todo::Task', 'worker', 'Todo::Worker' );
+
+  DROP TABLE IF EXISTS `todo_list`.`History`;
+  CREATE TABLE `History` (
+      `id` bigint(20) NOT NULL auto_increment,
+      `obj_class` varchar(100) NOT NULL default '',
+      `prop_name` varchar(100) NOT NULL default '',
+      `obj_id` int(11) NOT NULL default '0',
+      `old_value` varchar(255) default '',
+      `new_value` varchar(255) default '',
+      `date` datetime NOT NULL,
+      `editor` varchar(255) NOT NULL default '',
+      `slaved_by` bigint(20) unsigned default NULL,
+      PRIMARY KEY  (`id`)
+  ) TYPE=InnoDB;
+
+  DROP TABLE IF EXISTS `todo_list`.`Task`;
+  CREATE TABLE `task` (
+      `id` bigint(20) unsigned NOT NULL auto_increment,
+      `title` varchar(255) NOT NULL default '',
+      `desc` text NOT NULL,
+      `created` date default NULL,
+      `start_date` date default NULL,
+      `deadline` date default NULL,
+      `worker` bigint(20) unsigned default NULL,
+      PRIMARY KEY  (`id`)
+  ) TYPE=InnoDB;
+
+  DROP TABLE IF EXISTS `todo_list`.`Worker`;
+  CREATE TABLE `worker` (
+      `id` bigint(20) unsigned NOT NULL auto_increment,
+      `name` varchar(100) NOT NULL default '',
+      PRIMARY KEY  (`id`)
+  ) TYPE=InnoDB;
+
+Мы создали 4 таблицы, первая из них C<_ORM_refs> является службной,
+строки этой таблицы определяют взаимосвязи между классами нашей модели,
+а также взаимодействия с классами третьих лиц.
+Чтобы сделать свойство C<Todo::Task>->C<worker> - ссылкой на объект
+C<Todo::Worker> в таблицу добавлена строка:
+
+  class       | prop      | ref_class
+  ------------------------------------
+  Todo::Task  | worker    | Todo::Worker
+
+Для часто используемых классов есть другой метод определения
+класса свойства - это переопределение метода ORM::_db_type_to_class,
+который принимает в качестве параметров имя и тип поля таблицы и возвращает
+имя класса свойства.
+По умолчанию этот метод назначает классы L<ORM::Date> и L<ORM::Datetime>
+соответственно свойствам типа C<DATE> и C<DATETIME>.
+
+Любая таблица используемая в ORM должна иметь автоинкрементное поле id,
+являющееся идентификатором объекта.
+
+=head1 УРОК 2: СОЗДАНИЕ И ИЗМЕНЕНИЕ ОБЪЕКТОВ
+
+Для управления объектами нашей модели, создадим два простых скрипта
+для создания и изменения объектов.
+
+Файл new.pl
+
+  #!/usr/bin/perl
+  #
+  # Use: perl new.pl <Class> <Prop1Name> <Prop1Value> <Prop2Name> <Prop2Value>...
+  #
+  # Class - Name of the class without 'Todo::' prefix.
+  #
+
+  use lib "lib";
+  use lib "../ORM/lib";
+
+  $nick  = shift;
+  $class = "Todo::$nick";
+
+  eval "require $class" or die $@;
+
+  $error = ORM::Error->new;
+  %prop  = @ARGV;
+  $obj   = $class->new( prop=>\%prop, error=>$error );
+
+  if( $obj )
+  {
+      print "New $nick was created with id:".$obj->id."\n" if( $obj );
+      $obj->print;
+  }
+
+  print $error->text;
+
+Файл update.pl
+
+  #!/usr/bin/perl
+  #
+  # Use: perl update.pl <Class> <ObjectID> <Prop1Name> <Prop1Value> <Prop2Name> <Prop2Value>...
+  #
+  # Class - Name of the class without 'Todo::' prefix.
+  #
+
+  use lib "lib";
+  use lib "../ORM/lib";
+
+  $nick  = shift;
+  $class = "Todo::$nick";
+
+  eval "require $class" or die $@;
+
+  $id    = shift;
+  $error = ORM::Error->new;
+  %prop  = @ARGV;
+  $obj   = $class->find_id( id=>$id, error=>$error );
+
+  if( $obj )
+  {
+      $obj->update( prop=>\%prop, error=>$error ) unless( $error->fatal );
+      print "Updated $nick with id:".$obj->id."\n";
+      $obj->print;
+  }
+  else
+  {
+      print STDERR "Object #$id of $class not found!\n";
+  }
+
+  print $error->text;
+
+Оба скрипта используют метод print, который необходимо описать в инициирующем
+классе C<Todo::ORM>. Этот метод выводит информацию об объекте для которого он
+вызывается:
+
+  sub print
+  {
+      my $self  = shift;
+      my $ident = shift||0;
+      my @ref;
+
+      # При выводе информации о связанных объектах
+      # не уходить глубже третьего уровня рекурсии.
+      
+      return if( $ident > 3 );
+
+      # Вывести информацию об объекте
+      
+      print ' 'x($ident*2),('-'x20),"\n";
+      for my $prop ( (ref $self)->_all_props )
+      {
+          printf "%".(20+$ident*2)."s %s\n", "$prop:", $self->_property_id( $prop );
+          if( (ref $self)->_prop_is_ref( $prop ) && $self->_property( $prop ) )
+          {
+              push @ref, $self->_property( $prop );
+          }
+      }
+      print ' 'x($ident*2),('-'x20),"\n\n";
+
+      # Вывести информацию о связанных объектах
+
+      for my $prop ( @ref )
+      {
+          print ' 'x(($ident+1)*2),"Related object '$prop':\n";
+          $prop->print( $ident+1 );
+      }
+  }
+
+Теперь создадим несколько работников и задач.
+
+  # perl new.pl Worker name "Eric Cartman"
+  New Worker was created with id:1
+  --------------------
+                   id: 1
+                class: Todo::Worker
+                 name: Eric Cartman
+  --------------------
+  
+  # perl new.pl Worker name "Kenny McCormic"
+  New Worker was created with id:2
+  --------------------
+                   id: 2
+                class: Todo::Worker
+                 name: Kenny McCormic
+  --------------------
+
+  # perl new.pl Task \
+        title "Kill Kenny" \
+        desc "Just kill Kenny!" \
+        worker 1 \
+        created "2005-12-18" \
+        start_date "2006-01-01" \
+        deadline "2006-01-02"
+
+  New Task was created with id:1
+  --------------------
+                   id: 1
+                class: Todo::Task
+              created: 2005-12-18
+                 desc: Just kill Kenny!
+               worker: 1
+             deadline: 2006-01-02
+                title: Kill Kenny
+           start_date: 2006-01-01
+  --------------------
+
+    Related object 'worker':
+    --------------------
+                     id: 1
+                  class: Todo::Worker
+                   name: Eric Cartman
+    --------------------
+
+  # perl new.pl Task \
+        title "Eat Chocolate pie" \
+        desc "Ask your mummy." \
+        worker 1 \
+        created "2005-12-18" \
+        start_date "2006-01-01" \
+        deadline "2006-01-02"
+
+  New Task was created with id:2
+  --------------------
+                   id: 2
+                class: Todo::Task
+              created: 2005-12-18
+                 desc: Ask your mummy.
+               worker: 1
+             deadline: 2006-01-02
+                title: Eat Chocolate pie
+           start_date: 2006-01-01
+  --------------------
+
+    Related object 'worker':
+    --------------------
+                     id: 1
+                  class: Todo::Worker
+                   name: Eric Cartman
+    --------------------
+
+Для удобства внесем изменения в класс C<Todo::Task>,
+чтобы по умолчанию свойство created приравнивалось 
+текущей дате:
+
+  sub _validate_prop
+  {
+      my $self = shift;
+      my %arg  = @_;
+
+      if( ! $self->id && ! $self->created )
+      {
+          $self->_fix_prop( prop=>{ created=>ORM::Date->current }, error=>$arg{error} );
+      }
+
+      $self->SUPER::_validate_prop( %arg );
+  }
+
+=over
+
+=item * Метод '_validate_prop' вызывается при создании объекта
+(из метода 'new') и при его изменении (из метода 'update')
+
+=item * Условие ( !$self->id ) означает, что объект еще не был сохранен
+в базе данных. То есть оно будет выполнено только при создании объекта.
+
+=item * Метод '_fix_prop' должен вызываться только из метода '_validate_prop'
+
+=item * Не забывайте вызывать метод '_validate_prop' базового класса.
+
+=back
+
+Теперь добавим еще одну задачу:
+
+  # perl new.pl Task \
+        title "Keep alive" \
+        desc "Just keep alive!" \
+        worker 2 \
+        start_date "2005-12-31" \
+        deadline "2006-01-02"
+
+  New Task was created with id:3
+  --------------------
+                   id: 3
+                class: Todo::Task
+              created: 2005-12-18
+                 desc: Just keep alive!
+               worker: 2
+             deadline: 2006-01-02
+                title: Keep alive
+           start_date: 2005-12-31
+  --------------------
+
+    Related object 'worker':
+    --------------------
+                     id: 2
+                  class: Todo::Worker
+                   name: Kenny McCormic
+    --------------------
+
+Мы не указывали свойство created и оно по умолчанию приравнялось
+текущей дате. Видимо Кенни все равно умрет по достижении deadline.
+
+=head1 УРОК 3: ВЫБОРКА И ФИЛЬТРАЦИЯ
+
+Теперь когда мы имем запланированные задачи,
+можно занятся отчетами. Основные отчеты это:
+
+=over
+
+=item * Задачи запланированные для выполнения определенным сотрудником.
+
+=item * Задачи, которые должны быть выполнены к конкретному сроку.
+
+=back
+
+Объекты для первого отчета выбираются следующим запросом:
+
+  ORM::DbLog->write_to_stderr( 1 );
+  @tasks = Todo::Task->find
+  (
+      filter => ( Todo::Task->M->worker == $worker ),
+      error  => $error,
+  );
+
+Todo::Task->M->worker - это метасвойство, т.е. объект класса ORM::Metaprop
+или его потомка. В результирующем SQL-запросе вместо этого объекта будет
+подставленно имя соответствующего поля таблицы.
+Метасвойство Todo::Task->M означает сам объект класса Todo::Task.
+Далее Вы увидите, что метасвойства конструируются очень просто.
+
+$worker может быть объектом класса Todo::Worker или id объекта из базы.
+
+Объект $error типа ORM::Error будет содержать описание ошибки,
+если таковая произойдет во время выполнения запроса.
+Этот параметр необязателен, в текущей версии если параметр $error
+опущен, то ошибка будет проигнорирована, в будущих версиях,
+возможна реализация функциональности, при которой программа при наличии
+ошибки и отсутствии параметра error будет завершена аварийно.
+
+Вызов C<ORM::DbLog>->C<write_to_stderr( 1 )> включает вывод SQLlog в STDERR.
+Таким образом можно видеть в какие запросы преобразутся объектные вызовы ORM.
+В нашем случае сгенерированный запрос будет выглядеть следующим образом
+(при $worker=1):
+
+  --------------------------
+  [Mon Dec 26 00:14:27 2005]: ORM::find: Success
+  SELECT
+    DISTINCT `Task`.*
+  FROM
+    `Task`
+  WHERE
+    (`worker` = '1')
+
+Если нужно сделать выборку задач зная только имя работника,
+то запрос будет выглядеть так:
+
+  @tasks = Todo::Task->find
+  (
+      filter => ( Todo::Task->M->worker->name eq $worker_name ),
+      order  => ORM::Order->new( [ Todo::Task->M->created, 'DESC' ] ),
+      error  => $error,
+  );
+
+Обратите внимание на использование операторов == и eq. Все известные мне 
+СУБД не делают разницы между строковой и числовой операциями сравнения,
+поэтому эффект от их применения совершенно одинаковый, однако для лучшей
+читабельности неплохо использовать подходящий по смыслу оператор.
+
+Параметр order говорит о том, что найденные задачи должны сортироваться
+в соответствии с датой создания по убыванию.
+
+Еще немного усложним наш запрос, рассмотрим случай, когда нужно выбрать задачи
+сотрудника или сотрудников, зная только часть имени:
+
+  @tasks = Todo::Task->find
+  (
+      filter => ( Todo::Task->M->worker->name->_like( '%Cartman%' ) ),
+      order  => ORM::Order->new( [ Todo::Task->M->created, 'DESC' ] ),
+      error  => $error,
+  );
+
+SQL-запрос для этого вызова выглядит следующим образом:
+
+  SELECT
+    DISTINCT `_T1_Task`.*
+  FROM
+    `Task` AS `_T1_Task`
+      LEFT JOIN `Worker` AS `_T2_Worker` ON( `_T1_Task`.`worker`=`_T2_Worker`.`id` )
+  WHERE
+    (`_T2_Worker`.`name` LIKE '%Cartman%')
+  ORDER BY `_T1_Task`.`created` DESC
+
+Запрос для второго отчета выглядит аналогично:
+
+  $M     = Todo::Task->M;
+  @tasks = Todo::Task->find( filter => ( $M->deadline < '2006-01-30' ) );
+
+Переменная $M введена для краткости, такой прием удобно использовать в случае
+сложных условий поиска.
+
+Для примера можно рассмотреть еще один отчет - количество задач назначенных
+каждому из сотрудников, для этого отчета будет использован метод C<stat>,
+который возвращает информацию об объектах класса и связанных с ними объектами
+других классов, в виде, запрошенном пользователем:
+
+  $M   = Todo::Worker->M;
+  $res = Todo::Worker->stat
+  (
+      data =>
+      {
+          worker => $M,
+          tasks  => $M->_rev( 'Todo::Task' => 'worker' )->_count,
+      },
+      group_by => [ $M ],
+      preload  => { worker=>1 },
+  );
+
+Результатом выполнения метода будет ссылка на массив хешей, содержащих
+запрошенные данные.
+
+Параметр data определяет данные, которые нужно получить
+в результате запроса. В данном случае каждый из элементов массива @$res
+будет представлять из себя хеш с двумя ключами: worker - будет содержать 
+сам объект класса Todo::Worker, и tasks содержащий количество назначенных
+работнику задач.
+
+Параметр group_by полностью аналогичен выражению GROUP BY в SQL и преобразуется
+в него в результирующем SQL-запросе. Служит для определения того к каким данным
+будет применятся операция _count.
+
+Параметр preload определяет данные каких объектов должны быть загруженны
+генерируемым SQL-запросом. В нашем случае он означает, что итоговым запросом
+будут загружены все поля объектов worker. Если бы этот параметр был опущен,
+то объекты были бы загружены в режиме lazy_load и загрузились бы позднее по
+мере надобности, подробнее об этом в последующих уроках.
+
+$M->_rev( 'Todo::Task' => 'worker' ) - это обратное метасвойство, т.е. объекты
+класса 'Todo::Task' ссылающегося на 'Todo::Worker' через свойство 'worker'.
+'_count' - это просто напросто группирующая функция COUNT.
+
+Зарпос сгенерированный описанным вызовом метода stat выглядит так:
+
+  --------------------------
+  [Mon Dec 26 00:49:34 2005]: ORM::stat: Success
+  SELECT
+    'Todo::Worker' AS `_worker class`,
+    COUNT( `_T2_Task`.`id` ) AS `tasks`,
+    `_T1_Worker`.`id` AS `worker`,
+    `_T1_Worker`.`name` AS `_worker name`
+  FROM
+    `Worker` AS `_T1_Worker`
+      LEFT JOIN `Task` AS `_T2_Task` ON( `_T1_Worker`.`id`=`_T2_Task`.`worker` )
+  GROUP BY `_T1_Worker`.`id`
+
+=head1 УРОК 4: УДАЛЕНИЕ ОБЪЕКТОВ (В процессе...)
+
+
+=head1 УРОК 5: ОБРАБОТКА ОШИБОК (В процессе...)
+
+
+=head1 УРОК 6: ТРАНЗАКЦИИ (В процессе...)
+
+
+=head1 УРОК 7: ЛЕНИВАЯ ЗАГРУЗКА (LAZY_LOAD) (В процессе...)
+
+
+=head1 УРОК 8: ИСПОЛЬЗОВАНИЕ ИСТОРИИ (В процессе...)
+
+
+=head1 УРОК 9: НАСЛЕДОВАНИЕ (В процессе...)
+
+
+=head1 УРОК 10: РЕФАКТОРИНГ (В процессе...)
+
+
+=head1 SEE ALSO
+
+http://www.sourceforge.net/perlorm/
+
+=head1 AUTHOR
+
+Alexey V. Akimov
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2005 by Alexey V. Akimov
+
+This library is free software; you can redistribute it and/or modify
+it under the terms of LGPL licence.
+
+=cut
