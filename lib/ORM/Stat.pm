@@ -16,6 +16,8 @@ package ORM::Stat;
 
 use ORM::Error;
 
+$VERSION = 0.8;
+
 sub new
 {
     my $class = shift;

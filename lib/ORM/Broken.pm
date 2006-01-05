@@ -16,6 +16,8 @@ package ORM::Broken;
 
 use Carp;
 
+$VERSION = 0.8;
+
 sub AUTOLOAD
 {
     my $self   = shift;

@@ -20,13 +20,13 @@ BEGIN
             password    => '',
         ),
 
-        db2 => ORM::Db::DBI::MySQL->new
-        (
-            host        => 'localhost',
-            database    => 'orm_test',
-            user        => 'orm_test',
-            password    => 'orm_test',
-        ),
+#        db2 => ORM::Db::DBI::MySQL->new
+#        (
+#            host        => 'localhost',
+#            database    => 'orm_test',
+#            user        => 'orm_test',
+#            password    => 'orm_test',
+#        ),
     );
 }
 

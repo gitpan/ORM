@@ -303,7 +303,7 @@ File update.pl
 Both scripts use C<print> method we doesn't declare yet.
 This method is aimed to print plain text information about specified
 object. This method should be defined in initial class so every object
-of our model can acces it.
+of our model can access it.
 
   sub print
   {
@@ -311,7 +311,7 @@ of our model can acces it.
       my $ident = shift||0;
       my @ref;
 
-      # Do not dive deeper that third level of recursion
+      # Do not dive deeper than third level of recursion
       # when printing information about related objects.
 
       return if( $ident > 3 );
@@ -520,7 +520,7 @@ error is silently ignored. In future version this behavious can
 be changed.
 
 Call C<ORM::DbLog>->C<write_to_stderr( 1 )> enables trace of so called
-B<SQL-log> to STDERR this is useful tool for debugging you code.
+B<SQL-log> to STDERR. This is useful tool for debugging you code.
 In described case (assuming $worker=1) SQL-log trace will look as follows:
 
   --------------------------

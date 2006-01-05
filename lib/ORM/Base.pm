@@ -16,6 +16,8 @@ package ORM::Base;
 
 use Carp;
 
+$VERSION = 0.8;
+
 my %require;
 my %loaded;
 my $active = 0;
