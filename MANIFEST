@@ -1,6 +1,7 @@
 Changes
 lib/ORM.pm
 lib/ORM.pod
+lib/ORM.pod.ru
 lib/ORM.ru.pod
 lib/ORM/Base.pm
 lib/ORM/Broken.pm
@@ -40,6 +41,8 @@ lib/ORM/StatResultSet.pm
 lib/ORM/Ta.pm
 lib/ORM/Tjoin.pm
 lib/ORM/TjoinNull.pm
+lib/ORM/Tutorial.pod
+lib/ORM/Tutorial.pod.ru
 lib/ORMtut.pod
 lib/ORMtut.ru.pod
 Makefile.PL

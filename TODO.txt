@@ -24,6 +24,7 @@ First queue:
    * Object model example
  * ORM tools
    * Object model web-browsing
+   * Create Perl modules and database tables from UML
    * Refactoring tools:
      * move property to descendant class
      * move property to base class
