@@ -35,7 +35,7 @@ use ORM::MetapropBuilder;
 use ORM::ResultSet;
 use ORM::StatResultSet;
 
-our $VERSION  = 0.8;
+our $VERSION  = 0.81;
 
 my $initialized;
 my $db;
@@ -1216,6 +1216,34 @@ sub _property_id
     return $self->{_ORM_data}{$prop};
 }
 
+sub _rev_prop
+{
+    my $self      = shift;
+    my $rev_class = shift;
+    my $rev_prop  = shift;
+    my %arg       = @_;
+
+    if( (ref $self)->_has_rev_ref( $rev_class, $rev_prop ) )
+    {
+        $arg{filter} = $arg{filter} & ( $rev_class->M->_prop( $rev_prop ) == $self );
+        $rev_class->find( %arg );
+    }
+}
+
+sub _rev_prop_count
+{
+    my $self      = shift;
+    my $rev_class = shift;
+    my $rev_prop  = shift;
+    my %arg       = @_;
+
+    if( (ref $self)->_has_rev_ref( $rev_class, $rev_prop ) )
+    {
+        $arg{filter} = $arg{filter} & ( $rev_class->M->_prop( $rev_prop ) == $self );
+        $rev_class->count( %arg );
+    }
+}
+
 ## use: $prop = $obj->prop( error=>ORM::Error, new_value=>SCALAR );
 ##
 ## 'prop' - is name of the property corresponding to field name in DB table
@@ -1593,7 +1621,7 @@ sub _derive
             table => $table,
             error => $error,
         );
-        if( $arg{derived_class} eq $history_class )
+        if( $history_class && $arg{derived_class} eq $history_class )
         {
             $struct->{slaved_by} = $history_class;
         }

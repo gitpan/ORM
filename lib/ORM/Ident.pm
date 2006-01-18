@@ -16,12 +16,14 @@ package ORM::Ident;
 
 use base 'ORM::Expr';
 
-$VERSION = 0.8;
+$VERSION = 0.81;
 
 sub new
 {
-    my $class = shift;
-    my $self  = { name=>shift };
+    my $class  = shift;
+    my $name   = shift;
+    my $nclass = shift;
+    my $self   = { name=>$name, tjoin=>ORM::Tjoin->new( null_class=>$nclass ) };
 
     return bless $self, $class;
 }
@@ -34,7 +36,7 @@ sub _sql_str
     $arg{tjoin}->class->ORM::qi( $self->{name} );
 }
 
-sub name  { shift->{name}; }
-sub _tjoin { ORM::Tjoin->new; }
+sub name   { $_[0]->{name}; }
+sub _tjoin { $_[0]->{tjoin}; }
 
 1;

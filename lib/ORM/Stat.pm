@@ -14,9 +14,10 @@
 
 package ORM::Stat;
 
+use ORM::StatMetaprop;
 use ORM::Error;
 
-$VERSION = 0.8;
+$VERSION = 0.81;
 
 sub new
 {
@@ -45,10 +46,11 @@ sub find
     my $obj = $class->stat_class->stat
     (
         data        => $class->data,
-        filter      => $class->filter,
+        preload     => $class->preload,
+        filter      => ( $class->filter & $arg{pre_filter} ),
         group_by    => $class->group_by,
 
-        post_filter => $arg{filter},
+        post_filter => ( $class->post_filter & $arg{filter} ),
         order       => ($arg{order}||$class->default_order),
         page        => $arg{page},
         pagesize    => $arg{pagesize},
@@ -78,9 +80,10 @@ sub count
     my $count = $class->stat_class->stat
     (
         data        => $class->data,
-        filter      => $class->filter,
+        filter      => ( $class->filter & $arg{pre_filter} ),
         group_by    => $class->group_by,
-        post_filter => $arg{filter},
+
+        post_filter => ( $class->post_filter & $arg{filter} ),
         count       => 1,
         error       => $error,
         debug       => $arg{debug},
@@ -89,6 +92,8 @@ sub count
     $arg{error} && $arg{error}->add( error=>$error );
     return $count;
 }
+
+sub preload { undef; }
 
 sub _all_props
 {
@@ -112,6 +117,12 @@ sub _property_id
     ref $self->{$prop} ? $self->{$prop}->__ORM_db_value : $self->{$prop};
 }
 
+sub M
+{
+    my $class = shift;
+    ORM::StatMetaprop->new( stat_class=>$class );
+}
+
 sub AUTOLOAD
 {
     if( $AUTOLOAD =~ /^(.+)::(.+)$/ )
@@ -121,6 +132,10 @@ sub AUTOLOAD
 
         $self->_property( $prop );
     }
+}
+
+sub DESTROY
+{
 }
 
 1;

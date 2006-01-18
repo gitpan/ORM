@@ -7,7 +7,7 @@ SYNOPSIS
     application.
 
 LESSON 1: CREATING OBJECT MODEL
-    We wil start with simple object model, which will be improved and
+    Let's start with simple object model, which will be improved and
     modified as needed later. Object classes of our example application is:
 
     1. Task
@@ -33,30 +33,17 @@ LESSON 1: CREATING OBJECT MODEL
 
       package Todo::ORM;
 
-      use ORM::Db::DBI::MySQL; # Using MySQL storage driver
+      use ORM::Db::DBI::MySQL;
       use base 'ORM';
 
       BEGIN
       {
-          # _init method should be called in begin block of every 
-          # initial class.
           ORM->_init
           (
-              # Enable objects change history.
-              # If this parameter is omitted then history will
-              # be disabled for entire object model.
-              # See below about what class 'Todo::History' should
-              # look like.
-              history_class        => 'Todo::History',
-
-              # Do not use lazy objects load by default
               prefer_lazy_load     => 0,
-
               emulate_foreign_keys => 1,
-
               default_cache_size   => 200,
 
-              # Initialization of storage driver
               db => ORM::Db::DBI::MySQL->new
               (
                   host        => 'localhost',
@@ -69,21 +56,7 @@ LESSON 1: CREATING OBJECT MODEL
 
       1;
 
-    Next step is to create "Todo::History" class. This class will be
-    responsible for storing objects change history. Class module content is
-    quite simple:
-
-    File Todo/History.pm
-
-      package Todo::History;
-
-      $VERSION=0.1;
-
-      use ORM::Base 'Todo::ORM', i_am_history=>1;
-  
-      1;
-
-    Now let's create all other classes of our model.
+    Now let's declare classes of our model.
 
     PerlORM does not require to declare class properties in both class
     declaration and database. Creation of database table for storing objects
@@ -95,7 +68,7 @@ LESSON 1: CREATING OBJECT MODEL
     represented by single row in table or rows inner join in case of
     inheritance.
 
-    Initial declaration of classes also looks very simple:
+    Initial declaration of classes looks very simple:
 
     File Todo/Task.pm
 
@@ -150,20 +123,6 @@ LESSON 1: CREATING OBJECT MODEL
 
       INSERT INTO '_ORM_refs' VALUES ( 'Todo::Task', 'worker', 'Todo::Worker' );
 
-      DROP TABLE IF EXISTS `todo_list`.`History`;
-      CREATE TABLE `History` (
-          `id` bigint(20) NOT NULL auto_increment,
-          `obj_class` varchar(100) NOT NULL default '',
-          `prop_name` varchar(100) NOT NULL default '',
-          `obj_id` int(11) NOT NULL default '0',
-          `old_value` varchar(255) default '',
-          `new_value` varchar(255) default '',
-          `date` datetime NOT NULL,
-          `editor` varchar(255) NOT NULL default '',
-          `slaved_by` bigint(20) unsigned default NULL,
-          PRIMARY KEY  (`id`)
-      ) TYPE=InnoDB;
-
       DROP TABLE IF EXISTS `todo_list`.`Task`;
       CREATE TABLE `task` (
           `id` bigint(20) unsigned NOT NULL auto_increment,
@@ -186,29 +145,59 @@ LESSON 1: CREATING OBJECT MODEL
     We just created 4 tables, first of them "_ORM_refs" is special table.
     ORM uses it to detect links between classes in our model and with third
     party classes. In our model "worker" property of class "Todo::Task"
-    should be reference of an object of class "Todo::Worker". To declare it
-    for ORM we should insert following row in "_ORM_refs":
+    should be the reference to an object of class "Todo::Worker". To tell it
+    to ORM we should insert following row in "_ORM_refs":
 
       class       | prop      | ref_class
       ------------------------------------
       Todo::Task  | worker    | Todo::Worker
 
     For frequently used classes there is another way to define relations
-    between objects, this way is to override of "ORM::_db_type_to_class"
-    method in our initial class. "ORM::_db_type_to_class" accepts table
-    field name and type as its arguments and returns class assigned to
-    property.
+    between objects, this way is to override "ORM::_db_type_to_class" method
+    in our initial class. "_db_type_to_class" method accepts table field
+    name and type as its arguments and returns class that should be assigned
+    to property.
 
-    "ORM::_db_type_to_class" defined in ORM class by default assigns classes
-    ORM::Date and ORM::Datetime to properties described by fields of type
-    "DATE" and "DATETIME" respectively.
+    The default behavior of "_db_type_to_class" method defined in ORM class
+    is to assign classes ORM::Date and ORM::Datetime to properties described
+    by fields of type "DATE" and "DATETIME" respectively.
 
-    Every table that is used with ORM should have acutoincremented field
-    "id" which stored ID of objects of corresponding class.
+    Every table that is used with ORM should have autoincremented field "id"
+    which stored ID of objects of corresponding class.
 
 LESSON 2: CREATING AND UPDATING OBJECTS
-    To manage objects of our model we will create two perl scripts, one for
-    create objects "new.pl" and second for updating "update.pl"
+    Creation of objects in ORM is performed by calling 'new' method. For
+    example let's create 'Worker' object:
+
+      use Todo::Worker;
+
+      $error  = ORM::Error->new;
+      $worker = Todo::Worker->new
+      (
+          prop  => { name => 'E. Cartman' },
+          error => $error,
+      );
+
+      print $error->text;
+
+    If 'new' operation will fail then $error object will contain information
+    about occured errors.
+
+    Update of object is performed similarly:
+
+      use Todo::Worker;
+
+      $error  = ORM::Error->new;
+      $worker = Todo::Worker->find_id( id=>1, error=>$error );
+      $worker && $worker->update( prop=>{ name=> 'Eric Cartman' }, error=>$error );
+
+      print $error->text;
+
+    Use of $error object is not necessary but strongly recomended.
+
+    Now to more easily manage objects of our model we will create two perl
+    scripts, one for create objects "new.pl" and second for updating
+    "update.pl"
 
     File new.pl
 
@@ -312,16 +301,21 @@ LESSON 2: CREATING AND UPDATING OBJECTS
           }
       }
 
+    Note the way properties were accessed. For this purpose $obj->_property(
+    $property_name ) were used in above code. To access object properties
+    with more grace there is AUTOLOAD method. So you can simply call
+    $obj->$property_name (or just $obj->deadline for example). The
+    "ORM::_property" method is for cases when $property_name method should
+    be redefined in child class for some reason. Also you can use
+    $obj->_property_id( $property_name ) to get raw database value of the
+    property. Its result is:
+
+    * the same as of "ORM::_property_id" for plain (non-object) properties
+    * database property value for non-ORM third party classes
+    * object's ID for ORM classes
+
     Now we can fill our model with some objects.
 
-      # perl new.pl Worker name "Eric Cartman"
-      New Worker was created with id:1
-      --------------------
-                       id: 1
-                    class: Todo::Worker
-                     name: Eric Cartman
-      --------------------
-  
       # perl new.pl Worker name "Kenny McCormic"
       New Worker was created with id:2
       --------------------
@@ -489,7 +483,7 @@ LESSON 3: SELECTING AND FILTERING
       WHERE
         (`worker` = '1')
 
-    If we need to select tasks by worker name, then method call wiil look
+    If we need to select tasks by worker name, then method call will look
     like this:
 
       @tasks = Todo::Task->find
@@ -509,7 +503,7 @@ LESSON 3: SELECTING AND FILTERING
     "created" time in descendant order.
 
     Let's try little more complicated query when we need to find tasks
-    assigned for workers containing some string in their names:
+    assigned to workers containing some string in their names:
 
       @tasks = Todo::Task->find
       (
@@ -537,7 +531,7 @@ LESSON 3: SELECTING AND FILTERING
     Variable $M is for brevity, such trick is useful when constructing
     complex meta-expressions.
 
-    There is another interesting report is about number of tasks assigned to
+    There is another interesting report about number of tasks assigned to
     each worker, for this report we will use "stat" method, This method is
     useful when you need info about related objects:
 
@@ -556,8 +550,8 @@ LESSON 3: SELECTING AND FILTERING
     Opposite to "find" method which returns array of objects "stat" method
     returns array of hashes with requested data.
 
-    Parameter "data" is hash reference that defines what of data should be
-    retrieved from database. Resulting hash will contain records with
+    Parameter "data" is hash reference that defines what kind of data should
+    be retrieved from database. Resulting hash will contain records with
     exactly the same keys as in "data" parameter and with values retrieved
     from database as specified by values of "data".
 
@@ -568,11 +562,11 @@ LESSON 3: SELECTING AND FILTERING
     SQL-query "group_by" will be replaced with "GROUP BY". It is used to
     define how to apply grouping method "_count".
 
-    Parameter "preload" defines objects then should be loaded by resulting
+    Parameter "preload" defines objects that should be loaded by resulting
     query and not later by separate query.
 
-    Meta-property $M->_rev( 'Todo::Task' => 'worker' ) called reversive
-    meta-property it is used to access objects that refer to selected
+    Meta-property $M->_rev( 'Todo::Task' => 'worker' ) so called reversive
+    meta-property. It is used to access objects that refer to selected
     objects by one of its property. In our case objects of class
     "Todo::Task" referring to objects of class "Todo::Worker" by property
     "worker", therefore we can reversively access tasks assigned to a
@@ -592,15 +586,325 @@ LESSON 3: SELECTING AND FILTERING
           LEFT JOIN `Task` AS `_T2_Task` ON( `_T1_Worker`.`id`=`_T2_Task`.`worker` )
       GROUP BY `_T1_Worker`.`id`
 
-LESSON 4: DELETING OBJECTS (In progress...)
-LESSON 5: ERROR HANDLING (In progress...)
-LESSON 6: TRANSACTIONS (In progress...)
-LESSON 7: LAZY LOAD (In progress...)
-LESSON 8: USING HISTORY (In progress...)
-LESSON 9: INHERITANCE (In progress...)
-LESSON 10: SOME REFACTORING (In progress...)
+LESSON 4: DELETING OBJECTS
+    Method 'delete' is used for deletion of objects from database.
+
+      $worker->delete( error=>$error );
+
+    If 'emulate_foreign_keys' option to "ORM::_init" method is set to true
+    then before deletion ORM will check if there are another objects that
+    refer to object being deleted. If so $error object will contain
+    corresponding error message.
+
+    After object $worker has been deleted from database it is reblessed to
+    be object of class "ORM::Broken". Call to any method of this object will
+    croak with error message. This is to be sure that object is not being
+    used after it has been deleted.
+
+LESSON 5: OBJECT CHANGES HISTORY
+    To enable built-in feature to trace object changes simply use
+    "history_class" argument to "ORM::_init" method as shown below:
+
+      ORM->_init
+      (
+          history_class => 'Todo::History',
+          %another_args,
+      );
+
+    Next step is to declare "Todo::History" class. This class will behave as
+    any other regular ORM-class of our model. This means that any change of
+    any object will be introduced by one or more 'Todo::History' object.
+    History class declaration is quite simple:
+
+    File Todo/History.pm
+
+      package Todo::History;
+
+      $VERSION=0.1;
+
+      use ORM::Base 'Todo::ORM', i_am_history=>1;
+  
+      1;
+
+    As we have redefined "ORM::_guest_table_name" method, the table for
+    "Todo::History" class will have assumed name 'History'. Structure of the
+    table should be as follows:
+
+      DROP TABLE IF EXISTS `todo_list`.`History`;
+      CREATE TABLE `History` (
+
+          `id`        bigint(20)   NOT NULL auto_increment,
+
+          `obj_class` varchar(100) NOT NULL default '',
+          `obj_id`    int(11)      NOT NULL default '0',
+
+          `prop_name` varchar(100) NOT NULL default '',
+          `old_value` varchar(255)          default '',
+          `new_value` varchar(255)          default '',
+
+          `date`      datetime     NOT NULL,
+          `editor`    varchar(255) NOT NULL default '',
+          `slaved_by` bigint(20) unsigned   default NULL,
+
+          PRIMARY KEY  (`id`)
+
+      ) TYPE=InnoDB;
+
+    From this moment every 'new' (SQL INSERT), 'update' (SQL UPDATE) and
+    'delete' (SQL DELETE) actions will be logged in 'History' table.
+
+    Each action will be stored in at least one history object. 'new' action
+    create exactly one "Todo::History" object. 'update' and 'delete' actions
+    will create more than one "Todo::History" objects. 'update' action will
+    create number of additional history objects equal to number of
+    properties affected by operation. 'delete' action will create number of
+    additional history objects equal to number of properties of deleted
+    object.
+
+    All history object created for 'delete' or 'update' actions execpt first
+    object will have property 'slaved_by' set to id of first history object,
+    this object is called 'master'.
+
+    Main use of History class is to store all changes made to objects of our
+    model. But there is one more interesting feature. You can undo changes
+    with 'Todo::History::rollback' method. For example you can restore
+    deleted object by its ID like this:
+
+      $hist = Todo::History->find
+      (
+          filter => ORM::Expr->_and
+          (
+              # rollback operation should be called on master history object
+              Todo::History->M->master, 
+              Todo::History->M->obj_class eq 'Todo::Worker',
+              Todo::History->M->obj_id == 1,
+          ),
+      );
+      $hist && $hist->rollback;
+
+    This code will do the following:
+
+    1. Find 'slaved' history objects
+    2. Create 'Todo::Worker' object with properties from 'slaved' history
+    objects
+    3. Delete 'slaved' and 'master' history objects
+
+    Also it is possible to restore object not by ID but by arbitrary
+    property like this:
+
+      $hist = Todo::History->find
+      (
+          filter => ORM::Expr->_and
+          (
+              Todo::History->M->obj_class eq 'Todo::Worker',
+              Todo::History->M->prop_name == 'name',
+              Todo::History->M->old_value->_like( '%Cartman%' ),
+              Todo::History->M->delete_slave,
+          ),
+      );
+      $hist && $hist->slaved_by->rollback;
+
+    It is possible to rollback 'new' and 'update' actions by similar
+    fashion. You can find more detailed description of this feature in
+    ORM::History.
+
+LESSON 6: ERROR HANDLING
+    Error handling is done by passing 'error' argument to almost every ORM
+    method. 'error' argument should contain object of class "ORM::Error".
+    Consider the following code:
+
+      use Todo::Task;
+
+      $task  = Todo::Task->find; # first found task
+      $error = ORM::Error->new;
+      $task->update
+      (
+          prop  => { worker=>-1 },
+          error => $error,
+      );
+      print STDERR "Failed to update\n" if( $error->fatal );
+      print STDERR $error->text;
+
+    Output for this code:
+
+      Failed to update
+      fatal: ORM->_normalize_prop_to_db_value(): Property 'worker' of type 'Todo::Worker' with id='-1' was not found  
+
+    Classes of our object model also can produce their own errors and send
+    them to the caller.
+
+    For example we should not permit to set Todo::Task->deadline property to
+    be less than current date. To implement this functionality we will
+    modify "Todo::Task" class by adding new condition to "_validate_prop"
+    method:
+
+      if( $self->deadline < ORM::Datetime->current )
+      {
+          $arg{error}->add_fatal( "Deadline is in past!" );
+      }
+
+    As far as "_validate_prop" method is called only implicitly from 'new'
+    and 'delete' methods, you can be sure that $arg{error} contains correct
+    "ORM::Error" object. That's why there is noreason to test it before use.
+
+    In cases when you not sure that user has passed $error object to your
+    method you can use following scheme:
+
+      sub my_metod
+      {
+          my $self  = shift;
+          my %arg   = @_;
+          my $error = ORM::Error->new;
+
+          $error->add_fatal( "test 1" );
+          $error->add_warn( "test 2" );
+
+          $error->upto( $arg{error} );
+          return undef;
+      }
+
+    Call to 'upto' method sends error back to user if $arg{error} contains
+    valid error-object.
+
+LESSON 7: CACHING
+  ORM-object caching
+    Object's in-memory cache implemented on per-primary-class basis. Primary
+    class - is class that is a direct descendant of initial class.
+
+    The idea of such cache strategy is to have several caches, by one for
+    every primary class. Objects of non-primary class will use cache of its
+    primary class. With that in mind its time to say that
+    "default_cache_size" argument to "ORM::_init" specifies cache size for
+    one primary class and not total cache size.
+
+    In our object model this means that there is maximum of 200 cached
+    objects for "Todo::Worker" class and 200 cached objects for "Todo::Task"
+    class.
+
+    You can change cache size of individual primary class this way:
+
+      package Todo::Task;
+  
+      $VERSION=0.1;
+
+      use ORM::Base 'Todo::ORM', cache_size=>1000;
+
+    You can get current efficiency of in-memory cache by calling
+    ORM::Cache->total_efficiency and reset the cache counters by calling
+    ORM::Cache->clear_stat
+
+    When "default_cache_size" is set to zero, it is still possible that
+    object will be loaded from cache. This is because of instance caching
+    (see below).
+
+    Cache is organized in the fashion when you do not need to purge it
+    manually.
+
+  Perl-object caching
+    This mechanism is mostly common for ORMs and persistence tools in Perl.
+    This means that after
+
+      $task1 = Todo::Task->find_id( id=>1 );
+      $task2 = Todo::Task->find_id( id=>1 );
+
+    $task1 and $task2 will contain the same blessed reference. And even in
+    the following case:
+
+      $task1 = Todo::Task->find_id( id=>1 );
+      $task2 = Todo::Task->find( order=>[ Todo::Task->M->id ] );
+      $task3 = Todo::Task->find( filter=>( Todo::Task->M->desc->_like( %kill Kenny% ) ) );
+
+    All three variables will contain the same object.
+
+    Perl-object caching will work even when cache size is set to 0.
+
+  Properties caching
+    When you first access some object-property of ORM-object, then ORM tries
+    to create expected object for you (using find_id for ORM-object
+    properties and __ORM_new_db_value for non-ORM-properties) and then store
+    it in internal object's hash.
+
+    When you access the same object-property later it will not be created
+    again but fetched from hash.
+
+    When you need to refresh object's contents simply call
+
+      $task->refresh;
+
+LESSON 8: TRANSACTIONS
+    The usual way transactions should be used is to set up a correspondence
+    between single method and single transaction. If it is not the case then
+    probably there is some conceptional error in object model.
+
+      package Todo::Worker;
+
+      # Delegate all worker's tasks to new worker
+      sub delegate_tasks
+      {
+          my $self  = shift;
+          my %arg   = @_;
+          my $error = ORM::Error->new;
+          my $ta    = Todo::ORM->new_transaction( error=>$error );
+
+          for my $task ( $self->_rev_prop( 'Todo::Task'=>'worker', error=>$error ) )
+          {
+              $task->worker( new_value=>$arg{worker}, error=>$error );
+          }
+
+          $error->upto( $arg{error} );
+      }
+
+    As you can see the way transactions is used in ORM is different than
+    commonly used in other packages. In ORM you do not need to 'finish'
+    transaction explicitly. This helps you to avoid situations when you
+    forget to call method to finish transaction. $ta contains the object
+    assigned to a newly started transactions. Transaction is finished when
+    $ta object is destroyed. In our case this happens when method is
+    finished.
+
+    If $error contain one or more fatal errors when $ta is being destroyed,
+    then transaction will be rolled back. Also transaction rollback is
+    performed for active transaction when die function called or runtime
+    error occured.
+
+    Note use of '_rev_prop' method in foreach loop:
+
+      $self->_rev_prop( 'Todo::Task'=>'worker', error=>$error );
+
+    is the same as:
+
+      Todo::Task->find( filter=>( Todo::Task->M->worker==$self ), error=>$error );
+
+    Transactions in ORM can be nested:
+
+      package Todo::Worker;
+  
+      # Delegate all old worker's tasks to new worker
+      # and delete old worker
+      sub discharge
+      {
+          my $self  = shift;
+          my %arg   = @_;
+          my $error = ORM::Error->new;
+          my $ta    = Todo::ORM->new_transaction( error=>$error );
+
+          $self->delegate_tasks( worker=>$arg{worker}, error=>$error );
+          $self->delete( error=>$error );
+
+          $error->upto( $arg{error} );
+      }
+
+    As you can see transactional method 'delegate_tasks' is called from
+    another transactional method 'discharge'. Nested transactional object
+    simply will not issue "BEGIN TRANSACTION" to the SQL-server. In case
+    when nested transaction is failed then outer transaction is failed too
+    and therefore is rolled back.
+
+LESSON 9: LAZY LOAD (To be documented)
+LESSON 10: INHERITANCE (To be documented)
+LESSON 11: SOME REFACTORING (To be documented)
 SEE ALSO
-    http://www.sourceforge.net/projects/perlorm/
+    http://www.sourceforge.net/projects/perlorm
 
 AUTHOR
     Alexey V. Akimov

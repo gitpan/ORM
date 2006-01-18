@@ -1,5 +1,6 @@
 Changes
 lib/ORM.pm
+lib/ORM.pod
 lib/ORM.ru.pod
 lib/ORM/Base.pm
 lib/ORM/Broken.pm
@@ -34,10 +35,13 @@ lib/ORM/MetapropBuilder.pm
 lib/ORM/Order.pm
 lib/ORM/ResultSet.pm
 lib/ORM/Stat.pm
+lib/ORM/StatMetaprop.pm
 lib/ORM/StatResultSet.pm
 lib/ORM/Ta.pm
 lib/ORM/Tjoin.pm
 lib/ORM/TjoinNull.pm
+lib/ORMtut.pod
+lib/ORMtut.ru.pod
 Makefile.PL
 MANIFEST
 README

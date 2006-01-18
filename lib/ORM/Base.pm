@@ -54,7 +54,10 @@ sub import
     print STDERR "  Loading class $derived\n" if( $debug );
 
     my @require = $base->_derive( derived_class=>$derived, %arg );
-    push @require, $derived->_history_class unless( $loaded{$derived->_history_class} );
+    if( $derived->_history_class && !$loaded{$derived->_history_class} )
+    {
+        push @require, $derived->_history_class;
+    }
     for my $module ( @require )
     {
         if( $loaded{$module} )

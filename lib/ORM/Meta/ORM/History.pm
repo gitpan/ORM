@@ -16,10 +16,12 @@ package ORM::Meta::ORM::History;
 
 use base 'ORM::Metaprop';
 
-$VERSION=0.8;
+$VERSION=0.81;
 
 ##
 ## CONSTRUCTORS
 ##
 
-sub master { shift->slaved_by == undef; }
+sub master       { shift->slaved_by == undef; }
+sub delete_slave { shift->slaved_by->prop_name eq 'id'; }
+

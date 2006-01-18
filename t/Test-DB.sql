@@ -24,7 +24,7 @@ CREATE TABLE [_ORM_refs] (
   PRIMARY KEY ([class],[prop])
 );
 
-INSERT INTO [Dummy] VALUES (415,'Test::Dummy::Child1','a','b','ñ');
+INSERT INTO [Dummy] VALUES (415,'Test::Dummy::Child1','a','b','c');
 INSERT INTO [Dummy] VALUES (416,'Test::Dummy::Child2','aa','bb','cc');
 INSERT INTO [Dummy__Child1] VALUES (415,'ca','cb');
 INSERT INTO [Dummy__Child2] VALUES (416,415);

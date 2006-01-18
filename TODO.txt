@@ -1,5 +1,9 @@
 First queue:
+ * Add 'grouping' flag to ORM::Tjoin object, forcing ORM::Db driver to group
+   result set by object's id (after that replace 'SELECT DISTINCT' with plain 'SELECT')
+ * ORM::Stat::stat method, using subqueries
  * Use transactions in 'new', 'update', 'delete' by default
+ * Implement non-transactional MySQL driver (ORM::Db::DBI::MySQLemTA)
  * Implement ORM::Db::Backup driver
  * Implement ORM::Db::Replicated driver (to work with replicated DB in 'one master many slaves' mode)
  * Add 'preload' argument to 'find' method
@@ -31,8 +35,7 @@ First queue:
  * Allow multiple object models in one program
 
 Second queue:
- * Check modules versioning rules to comply to CPAN
-   perl -MExtUtils::MakeMaker -le 'print MM->parse_version(shift)' 'file'
+ * Support temporary tables and views for 'ORM::Stat'
  * Events (Triggers)
  * Tests for ORM::History
  * Initial class configuration:
@@ -41,7 +44,6 @@ Second queue:
  * Method stat should autoload descendants classes and property classes
  * Methods 'stat' and 'find' should accept argument telling not to autoload
    descendants classes and property classes
- * Meta properties for ORM::Stat descendants
  * Die if 'class' is an empty string
  * Arbitrary field to use as 'id' field
  * Arbitrary field to use as 'class' field

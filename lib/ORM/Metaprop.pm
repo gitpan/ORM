@@ -14,7 +14,7 @@
 
 package ORM::Metaprop;
 
-$VERSION=0.8;
+$VERSION=0.81;
 
 use Carp;
 use ORM;
@@ -34,14 +34,25 @@ sub new
 {
     my $class = shift;
     my %arg   = @_;
-    my $self  =
-    {
-        expr       => $arg{expr},
-        tjoin      => $arg{expr}->_tjoin->copy,
-        prop_class => $class->_metaclass2class( $class ),
-    };
+    my $self;
 
-    return bless $self, $class;
+    if( $class eq 'ORM::Metaprop' )
+    {
+        $self = $arg{expr};
+    }
+    elsif( $arg{expr} )
+    {
+        $self =
+        {
+            expr       => $arg{expr},
+            tjoin      => $arg{expr}->_tjoin->copy,
+            prop_class => $class->_metaclass2class( $class ),
+        };
+
+        bless $self, $class;
+    }
+
+    return $self;
 }
 
 ## use: $prop = $class->_new
@@ -321,6 +332,7 @@ sub _rev_expand
     my $self      = shift;
     my $rev_class = shift;
     my $rev_prop  = shift;
+    my $cond      = shift;
 
     if( !$self->{prop_ref_class} )
     {
@@ -332,7 +344,7 @@ sub _rev_expand
     }
     else
     {
-        $self->_arb_expand( 'id' => $rev_class, $rev_prop );
+        $self->_arb_expand( 'id' => $rev_class, $rev_prop, $cond );
     }
 }
 

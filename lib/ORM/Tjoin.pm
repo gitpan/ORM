@@ -23,7 +23,7 @@ use ORM::TjoinNull;
 ## Узлы структуры соответствуют таблицам базы данных.
 ##
 
-$VERSION=0.8;
+$VERSION=0.81;
 
 ##
 ## CLASS METHODS
@@ -46,7 +46,7 @@ sub new
 
     if( ! exists $arg{class} )
     {
-        $self = ORM::TjoinNull->new;
+        $self = ORM::TjoinNull->new( null_class=>$arg{null_class} );
     }
     elsif( !UNIVERSAL::isa( $arg{class}, 'ORM' ) || $arg{class}->_is_initial )
     {
@@ -138,6 +138,7 @@ sub copy
 ##
 
 sub class       { $_[0]->{class}; }
+sub null_class  { $_[0]->{class}; }
 sub fingerprint { $_[0]->{fingerprint}; }
 
 sub sql_cond_str

@@ -14,12 +14,15 @@
 
 package ORM::TjoinNull;
 
-$VERSION = 0.8;
+$VERSION = 0.81;
 
 sub new
 {
     my $class = shift;
+    my %arg   = @_;
     my $self  = {};
+
+    $self->{null_class} = $arg{null_class} if( $arg{null_class} );
 
     return bless $self, $class;
 }
@@ -35,3 +38,5 @@ sub merge
     %{$self} = %{$copy};
     bless $self, ref $copy;
 }
+
+sub null_class { shift->{null_class}; }

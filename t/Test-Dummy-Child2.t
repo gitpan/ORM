@@ -7,7 +7,7 @@ BEGIN { use_ok( 'Test::Dummy::Child2' ); }
 
 my $e = ORM::Error->new;
 
-ORM::DbLog->write_to_stdout( 1 );
+#ORM::DbLog->write_to_stdout( 1 );
 #$d = Test::Dummy::Child2->new( prop=>{ a=>'bad value' }, error=>$e );
 #ORM::DbLog->write_to_stdout( 0 );
 #print $e->text;

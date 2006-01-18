@@ -14,7 +14,7 @@
 
 package ORM::Expr;
 
-$VERSION=0.8;
+$VERSION=0.81;
 
 use ORM::Filter::Cmp;
 use ORM::Filter::Group;
@@ -91,7 +91,7 @@ sub _date_format     { ORM::Filter::Func->new( 'DATE_FORMAT', $_[0], $_[1] ); }
 sub _match         { ORM::Filter::Cmp->new( 'REGEXP', @_ ); }
 sub _regexp        { ORM::Filter::Cmp->new( 'REGEXP', @_ ); }
 sub _like          { ORM::Filter::Cmp->new( 'LIKE', @_ ); }
-sub _append        { $_[0]->_tjoin->class->_db->_func_concat( @_ ); }
+sub _append        { $_[0]->_tjoin->null_class->_db->_func_concat( @_ ); }
 sub _length        { ORM::Filter::Func->new( 'LENGTH', $_[0] ); }
 sub _is_undef      { ORM::Filter::Cmp->new( 'IS', $_[0], undef ); }
 sub _is_defined    { ORM::Filter::Cmp->new( 'IS NOT', $_[0], undef ); }
