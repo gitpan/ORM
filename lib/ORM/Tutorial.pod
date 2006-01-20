@@ -7,7 +7,7 @@ ORM - Object relational mapper for Perl.
 Purpose of this document is to brief introduce usage of PerlORM library
 on simple example. Example is 'Tasks Planner' (or 'Todo List') application.
 
-=head1 LESSON 1: CREATING OBJECT MODEL
+=head1 CREATING OBJECT MODEL
 
 Let's start with simple object model, which will be improved
 and modified as needed later.
@@ -176,6 +176,13 @@ To tell it to ORM we should insert following row in C<_ORM_refs>:
   ------------------------------------
   Todo::Task  | worker    | Todo::Worker
 
+This is the usual way the relations between classes are defined.
+Note that when you define reference property in C<Todo::Task> class
+to C<Todo::Worker>, the second one automatically gets so
+called B<reversive property> or collection property that contains
+all tasks assigned to particular worker object.
+In RDBMS terms such kind of relation is called one-to-many.
+
 For frequently used classes there is another way to define relations
 between objects, this way is to override C<ORM::_db_type_to_class>
 method in our initial class. C<_db_type_to_class> method accepts
@@ -189,7 +196,7 @@ described by fields of type C<DATE> and C<DATETIME> respectively.
 Every table that is used with ORM should have autoincremented field C<id>
 which stored ID of objects of corresponding class.
 
-=head1 LESSON 2: CREATING AND UPDATING OBJECTS
+=head1 CREATING OBJECTS
 
 Creation of objects in ORM is performed by calling 'new' method.
 For example let's create 'Worker' object:
@@ -206,22 +213,11 @@ For example let's create 'Worker' object:
   print $error->text;
 
 If 'new' operation will fail then C<$error> object will contain
-information about occured errors.
+information about occured errors. Use of $error object is not
+necessary but strongly recomended.
 
-Update of object is performed similarly:
-
-  use Todo::Worker;
-
-  $error  = ORM::Error->new;
-  $worker = Todo::Worker->find_id( id=>1, error=>$error );
-  $worker && $worker->update( prop=>{ name=> 'Eric Cartman' }, error=>$error );
-
-  print $error->text;
-
-Use of $error object is not necessary but strongly recomended.
-
-Now to more easily manage objects of our model we will create two perl
-scripts, one for create objects C<new.pl> and second for updating C<update.pl>
+Now to more easily manage objects of our model we will create perl
+script for object creation C<new.pl>
 
 File new.pl
 
@@ -252,42 +248,7 @@ File new.pl
 
   print $error->text;
 
-File update.pl
-
-  #!/usr/bin/perl
-  #
-  # Use: perl update.pl <Class> <ObjectID> <Prop1Name> <Prop1Value> <Prop2Name> <Prop2Value>...
-  #
-  # Class - Name of the class without 'Todo::' prefix.
-  #
-
-  use lib "lib";
-  use lib "../ORM/lib";
-
-  $nick  = shift;
-  $class = "Todo::$nick";
-
-  eval "require $class" or die $@;
-
-  $id    = shift;
-  $error = ORM::Error->new;
-  %prop  = @ARGV;
-  $obj   = $class->find_id( id=>$id, error=>$error );
-
-  if( $obj )
-  {
-      $obj->update( prop=>\%prop, error=>$error ) unless( $error->fatal );
-      print "Updated $nick with id:".$obj->id."\n";
-      $obj->print;
-  }
-  else
-  {
-      print STDERR "Object #$id of $class not found!\n";
-  }
-
-  print $error->text;
-
-Both scripts use C<print> method we doesn't declare yet.
+Above script uses C<print> method we doesn't declare yet.
 This method is aimed to print plain text information about specified
 object. This method should be defined in initial class so every object
 of our model can acces it.
@@ -331,6 +292,7 @@ To access object properties with more grace there is AUTOLOAD method.
 So you can simply call $obj->$property_name (or just $obj->deadline for example).
 The C<ORM::_property> method is for cases when $property_name method 
 should be redefined in child class for some reason.
+
 Also you can use $obj->_property_id( $property_name ) to get raw database value
 of the property. Its result is:
 
@@ -344,7 +306,7 @@ of the property. Its result is:
 
 =back
 
-Now we can fill our model with some objects.
+Now we can fill our model with some more objects.
 
   # perl new.pl Worker name "Kenny McCormic"
   New Worker was created with id:2
@@ -477,7 +439,57 @@ As you can see C<created> property is implicitly initialized
 with default value of current time.
 (It seems like Kenny will die anyway after deadline.)
 
-=head1 LESSON 3: SELECTING AND FILTERING
+=head1 UPDATING OBJECTS
+
+Update of object is performed with the same simplicitly:
+
+  use Todo::Worker;
+
+  $error  = ORM::Error->new;
+  $worker = Todo::Worker->find_id( id=>1, error=>$error );
+  $worker && $worker->update( prop=>{ name=> 'Eric Cartman' }, error=>$error );
+
+  print $error->text;
+
+To easily update objects from command line there will be another script
+that is very similar to C<new.pl>.
+
+File update.pl
+
+  #!/usr/bin/perl
+  #
+  # Use: perl update.pl <Class> <ObjectID> <Prop1Name> <Prop1Value> <Prop2Name> <Prop2Value>...
+  #
+  # Class - Name of the class without 'Todo::' prefix.
+  #
+
+  use lib "lib";
+  use lib "../ORM/lib";
+
+  $nick  = shift;
+  $class = "Todo::$nick";
+
+  eval "require $class" or die $@;
+
+  $id    = shift;
+  $error = ORM::Error->new;
+  %prop  = @ARGV;
+  $obj   = $class->find_id( id=>$id, error=>$error );
+
+  if( $obj )
+  {
+      $obj->update( prop=>\%prop, error=>$error ) unless( $error->fatal );
+      print "Updated $nick with id:".$obj->id."\n";
+      $obj->print;
+  }
+  else
+  {
+      print STDERR "Object #$id of $class not found!\n";
+  }
+
+  print $error->text;
+
+=head1 SELECTING AND FILTERING
 
 Now when we have some tasks planned for workers
 it's time to make some reports about tasks state.
@@ -542,7 +554,7 @@ will look like this:
 
 Draw attention on using of operators C<==> and C<eq>. Databases usually
 have no sence to this operator because in most cases they will be
-translater to SQL C<=> operator which is used for string and
+translated to SQL C<=> operator which is used for both string and
 numeric comparisons. Nevertheless for best readability it is reasonable to
 use this operators as in native Perl.
 
@@ -578,6 +590,21 @@ Call for second report looks much similar:
 Variable $M is for brevity, such trick is useful when constructing complex
 meta-expressions.
 
+Filters can be logically grouped with arbitrary complexity
+using 'ORM::Expr->_and' and 'ORM::Expr->_or' methods.
+In simplest case you can use overloaded '&' and '|' operators:
+
+  $M     = Todo::Task->M;
+  @tasks = Todo::Task->find
+  (
+      filter =>
+        ( $M->deadline < '2006-01-30' )
+        & Todo::Task->M->worker->name->_like( '%Cartman%' )
+  );
+
+Be careful with operator priorities while constructing expressions
+with these operators.
+
 There is another interesting report about number of tasks assigned
 to each worker, for this report we will use C<stat> method,
 This method is useful when you need info about related objects:
@@ -602,7 +629,7 @@ should be retrieved from database. Resulting hash will contain
 records with exactly the same keys as in C<data> parameter and
 with values retrieved from database as specified by values of C<data>.
 
-In out case $res will contain hashes with two keys C<worker> - 
+In our case $res will contain hashes with two keys C<worker> - 
 C<Todo::Worker> object and C<tasks> - number of assigned tasks.
 
 Parameter C<group_by> similar to SQL C<GROUP BY> statement.
@@ -614,7 +641,7 @@ query and not later by separate query.
 
 Meta-property $M->_rev( 'Todo::Task' => 'worker' ) so called 
 B<reversive meta-property>. It is used to access objects that refer
-to selected objects by one of its property. In our case objects of
+by one of their property to objects being selected. In our case objects of
 class C<Todo::Task> referring to objects of class C<Todo::Worker>
 by property C<worker>, therefore we can reversively access tasks
 assigned to a worker.
@@ -633,7 +660,7 @@ SQL-query for the call:
       LEFT JOIN `Task` AS `_T2_Task` ON( `_T1_Worker`.`id`=`_T2_Task`.`worker` )
   GROUP BY `_T1_Worker`.`id`
 
-=head1 LESSON 4: DELETING OBJECTS
+=head1 DELETING OBJECTS
 
 Method 'delete' is used for deletion of objects from database.
 
@@ -642,14 +669,82 @@ Method 'delete' is used for deletion of objects from database.
 If 'emulate_foreign_keys' option to C<ORM::_init> method is
 set to true then before deletion ORM will check if there are
 another objects that refer to object being deleted.
-If so $error object will contain corresponding error message.
+If so $error object will contain corresponding error message
+and object will not be deleted.
 
 After object $worker has been deleted from database it is reblessed
 to be object of class C<ORM::Broken>. Call to any method of
 this object will croak with error message. This is to be sure
 that object is not being used after it has been deleted.
 
-=head1 LESSON 5: OBJECT CHANGES HISTORY
+=head1 ERROR HANDLING
+
+Error handling is done by passing 'error' argument to almost
+every ORM method. 'error' argument should contain object of class
+C<ORM::Error>. Consider the following code:
+
+  use Todo::Task;
+
+  $task  = Todo::Task->find; # first found task
+  $error = ORM::Error->new;
+  $task->update
+  (
+      prop  => { worker=>-1 },
+      error => $error,
+  );
+  print STDERR "Failed to update\n" if( $error->fatal );
+  print STDERR $error->text;
+
+Output for this code:
+
+  Failed to update
+  fatal: ORM->_normalize_prop_to_db_value(): Property 'worker' of type 'Todo::Worker' with id='-1' was not found  
+
+Classes of our object model also can produce their own errors and send them to the caller.
+
+For example we should not permit to set Todo::Task->deadline property to be less than current date.
+To implement this functionality we will modify C<Todo::Task> class by adding new condition to
+C<_validate_prop> method:
+
+  if( $self->deadline < ORM::Datetime->current )
+  {
+      $arg{error}->add_fatal( "Deadline is in past!" );
+  }
+
+As far as C<_validate_prop> method is called only implicitly
+from 'new' and 'delete' methods, you can be sure that $arg{error}
+contains correct C<ORM::Error> object. That's why there is no reason
+to test it before use.
+
+In cases when you not sure that user has passed $error object to your method
+you can use following scheme:
+
+  sub my_metod
+  {
+      my $self  = shift;
+      my %arg   = @_;
+      my $error = ORM::Error->new;
+
+      $error->add_fatal( "test 1" );
+      $error->add_warn( "test 2" );
+
+      $error->upto( $arg{error} );
+      return undef;
+  }
+
+Call to 'upto' method sends error back to user if $arg{error}
+contains valid error-object.
+
+In current ORM version all errors are ignored if 'error'
+argument is not passed to a method. But it seems like a good
+practice to throw exceptions in such cases. This functionality
+is to be implemented in future releases.
+
+=head1 META-CLASSES (To be documented)
+
+=head1 THIRD PARTY CLASSES (To be documented)
+
+=head1 OBJECT CHANGES HISTORY
 
 To enable built-in feature to trace object changes
 simply use C<history_class> argument to C<ORM::_init>
@@ -764,65 +859,7 @@ like this:
 It is possible to rollback 'new' and 'update' actions by similar fashion.
 You can find more detailed description of this feature in L<ORM::History>.
 
-=head1 LESSON 6: ERROR HANDLING
-
-Error handling is done by passing 'error' argument to almost
-every ORM method. 'error' argument should contain object of class
-C<ORM::Error>. Consider the following code:
-
-  use Todo::Task;
-
-  $task  = Todo::Task->find; # first found task
-  $error = ORM::Error->new;
-  $task->update
-  (
-      prop  => { worker=>-1 },
-      error => $error,
-  );
-  print STDERR "Failed to update\n" if( $error->fatal );
-  print STDERR $error->text;
-
-Output for this code:
-
-  Failed to update
-  fatal: ORM->_normalize_prop_to_db_value(): Property 'worker' of type 'Todo::Worker' with id='-1' was not found  
-
-Classes of our object model also can produce their own errors and send them to the caller.
-
-For example we should not permit to set Todo::Task->deadline property to be less than current date.
-To implement this functionality we will modify C<Todo::Task> class by adding new condition to
-C<_validate_prop> method:
-
-  if( $self->deadline < ORM::Datetime->current )
-  {
-      $arg{error}->add_fatal( "Deadline is in past!" );
-  }
-
-As far as C<_validate_prop> method is called only implicitly
-from 'new' and 'delete' methods, you can be sure that $arg{error}
-contains correct C<ORM::Error> object. That's why there is noreason
-to test it before use.
-
-In cases when you not sure that user has passed $error object to your method
-you can use following scheme:
-
-  sub my_metod
-  {
-      my $self  = shift;
-      my %arg   = @_;
-      my $error = ORM::Error->new;
-
-      $error->add_fatal( "test 1" );
-      $error->add_warn( "test 2" );
-
-      $error->upto( $arg{error} );
-      return undef;
-  }
-
-Call to 'upto' method sends error back to user if $arg{error}
-contains valid error-object.
-
-=head1 LESSON 7: CACHING
+=head1 CACHING
 
 =head2 ORM-object caching
 
@@ -893,7 +930,7 @@ When you need to refresh object's contents simply call
 
   $task->refresh;
 
-=head1 LESSON 8: TRANSACTIONS
+=head1 TRANSACTIONS
 
 The usual way transactions should be used is to
 set up a correspondence between single method and
@@ -934,7 +971,19 @@ Note use of '_rev_prop' method in foreach loop:
 
   $self->_rev_prop( 'Todo::Task'=>'worker', error=>$error );
 
-is the same as:
+That is the way reversive properties (see L<CREATING OBJECT MODEL>) are
+accessed. If ccertain reversive property is frequently used then you can
+define shortcut method for it:
+
+  sub tasks { shift->_rev_prop( 'Todo::Task'=>'worker', @_ ); }
+
+And access it like this:
+
+  @tasks = $self->tasks( error=>$error );
+  $tasks = $self->tasks( error=>$error, return_ref=>1 );
+  $iterator = $self->tasks( error=>$error, return_res=>1 );
+
+In fact first appeared in this chapter call to C<_rev_prop> is similar to:
 
   Todo::Task->find( filter=>( Todo::Task->M->worker==$self ), error=>$error );
 
@@ -960,21 +1009,304 @@ Transactions in ORM can be nested:
 As you can see transactional method 'delegate_tasks'
 is called from another transactional method 'discharge'.
 Nested transactional object simply will not issue
-"BEGIN TRANSACTION" to the SQL-server.
+transaction related statements to SQL-server.
 In case when nested transaction is failed then outer
 transaction is failed too and therefore is rolled back.
 
-=head1 LESSON 9: LAZY LOAD (To be documented)
+It's planned to support transactions emulation for
+non-transactional databases in cases when it's possible.
+It's up to ORM users to decide how soon this feature
+will be implemented.
 
-=head1 LESSON 10: INHERITANCE (To be documented)
+=head1 INHERITANCE
 
+Suppose there are tasks that have to be done by
+group of workers. For that reason C<Todo::Worker::Group>
+class will be useful that is derivative of C<Todo::Worker>
+and have additional properties:
 
-=head1 LESSON 11: SOME REFACTORING (To be documented)
+=over
 
+=item 1. Team leader
+
+=item 2. Team members
+
+=back
+
+To implement inheritance ORM uses so called vertical mapping.
+This means that for every child class there is one table must be
+created which will contain only child's direct properties and not
+contain inheritted properties of base classes. When you do fetch
+objects of child class it's direct table is joined with tables
+of all base classes.
+
+This approach is most useful, its only disadvantage compared
+to another inheritance implementations is that it makes additional
+overheat to RDBMS to do table joins. But for large heavy-loaded
+sites this drawback is exhausted by using various types of
+RDBMS clustering and replication technologies.
+
+To implement C<Todo::Worker::Group> we need two steps:
+
+=over
+
+=item 1. Create class's module
+
+=item 2. Add 'class' property to base class
+
+=item 3. Create DB table for child class
+
+=back
+
+File Todo/Worker/Group.pm
+
+  package Todo::Worker::Group;
+   
+  $VERSION=0.1;
+       
+  use ORM::Base 'Todo::Worker';
+
+Note that argument to C<use ORM::Base> is 'Todo::Worker' not 'ORM'.
+
+Now we have to made changes to database:
+
+  CREATE TABLE  `Worker_Group` (
+    `id` bigint(20) unsigned NOT NULL auto_increment,
+    `leader` bigint(20) unsigned NOT NULL default '0',
+    PRIMARY KEY  (`id`)
+  ) ENGINE=InnoDB;
+
+  INSERT INTO '_ORM_refs' VALUES ( 'Todo::Worker::Group', 'leader', 'Todo::Worker' );
+  ALTER TABLE `Worker` ADD COLUMN `class` VARCHAR(45) NOT NULL AFTER `id`;
+  UPDATE `Worker` SET class='Todo::Worker';
+
+Now call:
+
+  @workers = Todo::Worker->find;
+
+Will return objects of C<Todo::Worker> and C<Todo::Worker::Group>.
+To get only C<Todo::Worker> object you should filter the
+result set like this:
+
+  @workers = Todo::Worker->find( filter=>( Todo::Worker->M->class eq 'Todo::Worker' ) );
+
+The best way to get only C<Todo::Worker::Group> objects:
+
+  @workers = Todo::Worker::Group->find;
+
+Next chapter will describe how to implement property of
+C<Todo::Worker::Group> containing list of group members.
+
+=head1 MANY TO MANY RELATIONS
+
+In previous chapters one-to-many relation type
+was shortly described. In this chapter you will get to know
+how to implement many-to-many relations using ORM.
+
+ORM does not share the way other persistence tools
+and mappers are implement this kind of relations.
+In fact ORM does nothing to implement it :)
+Probably because of lazy-loaded author (see below).
+
+The trick here is easy enought. Let's take a look 
+at the nature of many-to-many relations. 
+
+To define members of the workers group we should establish relation
+between C<Todo::Worker::Group> and C<Todo::Worker>. To describe the relation
+in RDBMS terms we need separate linking table called e.g. 'worker_to_group'
+or in worst case 'workers_to_groups' (avoid to use plural form in class names).
+Roughly the same we need when using ORM but the table will be assigned to
+B<linking class>, let's call it C<Todo::Worker::GroupMember>. (I usually use
+pair of colons to separate child classes so C<Todo::Worker::Group::Member> is
+not so good, but this is just my subjective rule).
+
+Now we have new class:
+
+  package Todo::Worker::GroupMember;
+
+  $VERSION=0.1;
+
+  use ORM::Base 'Todo::ORM';
+
+and should execute SQL:
+
+  DROP TABLE IF EXISTS `todo_list`.`worker_groupmember`;
+  CREATE TABLE `Worker_GroupMember` (
+    `id` bigint(20) unsigned NOT NULL auto_increment,
+    `group` bigint(20) unsigned NOT NULL default '0',
+    `worker` bigint(20) unsigned NOT NULL default '0',
+    PRIMARY KEY  (`id`),
+    UNIQUE KEY `group_worker` (`group`,`worker`)
+  ) TYPE=InnoDB;
+
+  INSERT INTO '_ORM_refs' VALUES ( 'Todo::Worker::GroupMember', 'group', 'Todo::Worker::Group' );
+  INSERT INTO '_ORM_refs' VALUES ( 'Todo::Worker::GroupMember', 'worker', 'Todo::Worker' );
+
+After this we can access collecions on both sides.
+
+To get members of the C<$group>:
+
+  @workers = Todo::Worker->find
+  (
+      filter=>
+      (
+          Todo::Worker->M->_rev( 'Todo::Worker::GroupMember'=>'worker' )->group == $group
+      )
+  );
+
+or
+
+  @workers = Todo::Worker::GroupMember->stat
+  (
+      data    => { worker => Todo::Worker::GroupMember->M->worker },
+      preload => { worker => 1 },
+      filter  => ( Todo::Worker::GroupMember->M->group == $group ),
+  );
+
+To get groups the C<$worker> belongs to:
+
+  @groups = Todo::Worker::Group->find
+  (
+      filter=>
+      (
+          Todo::Worker::Group->M->_rev( 'Todo::Worker::GroupMember'=>'group' )->worker == $worker
+      )
+  );
+
+or
+
+  @groups = Todo::Worker::GroupMember->stat
+  (
+      data    => { group => Todo::Worker::GroupMember->M->group },
+      preload => { group => 1 },
+      filter  => ( Todo::Worker::GroupMember->M->worker == $worker ),
+  );
+
+The advantage of this approach is that you easily can add
+property to C<Todo::Worker::GroupMember> that for example describes
+member's position in each group, that is impossible with commonly used
+'object collection' properties.
+
+The only drawback of this approach is that linking table should
+contain 'ID' field. This is to be fixed in the future by allowing
+object IDs to be multi-field primary keys.
+
+That's it!
+
+=head1 LAZY LOAD
+
+B<Lazy loading> is a technique in ORMs that attempts to delay
+fetching of data from database to your program object space
+until the data is known to be needed.
+
+The implementation of ORM supports per-field lazy load.
+But interface currently allows only per-table lazy load.
+Per-field lazy loading is currently used only in cases of 
+updates with server-side expressions (see below).
+
+There are three methods that supports 'lazy_load' option:
+
+First of them is C<find>. Suppose we need to get full list of workers.
+It can be done with or without lazy load.
+
+  @workers      = Todo::Worker->find;
+  @lazy_workers = Todo::Worker->find( lazy_load=>1 );
+
+In first case ORM load all data from C<Worker> table,
+if there are C<Todo::Worker::Group> objects exist then
+data from C<Worker_Group> table is loaded and joined.
+
+In second case only C<Worker> table is read and
+objects are put in lazy loaded state.
+
+Second method that supports lazy load is C<find_id>.
+
+  $worker = Todo::Worker->find_id( id=>1, lazy_load=>1 );
+
+This means not to load any data from database at all.
+When you try to access some C<$worker> property ORM
+attempts to load object from storage, if loading is failed
+then $worker is reblessed to C<ORM::Broken>.
+
+Also note that while C<$worker> is in lazy loaded state
+it is assumed to be object of C<Todo::Worker> class
+even if in fact it is object of C<Todo::Worker::Group>.
+
+To force load of lazy loaded object you can use 
+C<finish_loading> or C<refresh> methods.
+
+Finally C<stat> method accepts 'lazy_load' option that
+is forwarded to C<find_id> when C<stat> makes decision
+to load requested objects.
+
+  $result = Todo::Task->stat
+  (
+      data      => { task=>Todo::Task->M, worker=>Todo::Task->M->worker },
+      lazy_load => $lazy_load,
+  );
+
+This means to load set of tasks and their related workers.
+If C<$lazy_load> is C<true> then ORM do not execute
+separate queries to load complete objects, it just
+calls to C<find_id> with <lazy_load> option set to C<true>.
+
+Note that with using C<stat> you can load all objects in one query:
+
+  $result = Todo::Task->stat
+  (
+      data    => { task=>Todo::Task->M, worker=>Todo::Task->M->worker },
+      preload => { task=>1, worker=>1 },
+  );
+
+Also note that Objects of C<Todo::Worker::Group> are
+still not completely loaded (only C<Worker> table is read).
+
+There is corresponding query you can see with ORM::DbLog->write_to_stderr(1).
+
+  (to be inserted!!!)
+
+=head1 SERVER-SIDE UPDATES
+
+There is useful feature in ORM to do updates using
+server-side expressions (or meta expressions):
+
+  $cartman->update
+  (
+      prop=>{ name=>Todo::Worker->M->name->_append( ' (fatboy)' ) }
+  );
+
+Meta-expressions are constructed in the same fashion as for C<find>.
+
+After execution of above code $cartman will fall in lazy loaded
+state. More specifically it will have no idea about new value of 
+C<name> property.
+
+This feature is useful to do non-transactional updates
+in situations when you are not sure about freshness
+of the object being updated.
+Without using server-side update you will get error message
+if your object's data is not up to date.
+
+There is one unsolved issue about server-side updates.
+For sake of data integrity execution of server-side updates
+should be permitted only to class itself and to defined
+class friends. The idea how to make it is still high in
+the air. This issue is definetely should be solved earlier
+than version 1.0 of ORM is to be released.
+
+=head1 SOME REFACTORING
+
+=head2 Move property to base class (To be documented)
+
+=head2 Move property to child class (To be documented)
+
+=head2 Delete property (To be documented)
 
 =head1 SEE ALSO
 
 http://www.sourceforge.net/projects/perlorm
+
+TODO.txt
 
 =head1 AUTHOR
 

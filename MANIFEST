@@ -47,6 +47,7 @@ lib/ORMtut.pod
 lib/ORMtut.ru.pod
 Makefile.PL
 MANIFEST
+META.yml
 README
 t/ORM-Date.t
 t/ORM-Error.t
