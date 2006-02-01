@@ -1,14 +1,15 @@
 Changes
+COPYING
 lib/ORM.pm
 lib/ORM.pod
-lib/ORM.pod.ru
-lib/ORM.ru.pod
 lib/ORM/Base.pm
 lib/ORM/Broken.pm
 lib/ORM/Cache.pm
 lib/ORM/Const.pm
 lib/ORM/Date.pm
+lib/ORM/Date.pod
 lib/ORM/Datetime.pm
+lib/ORM/Datetime.pod
 lib/ORM/Db.pm
 lib/ORM/Db/DBI.pm
 lib/ORM/Db/DBI/MySQL.pm
@@ -19,6 +20,7 @@ lib/ORM/Db/Replicated.pm
 lib/ORM/DbLog.pm
 lib/ORM/DbResultSet.pm
 lib/ORM/Error.pm
+lib/ORM/Error.pod
 lib/ORM/Expr.pm
 lib/ORM/Filter.pm
 lib/ORM/Filter/Case.pm
@@ -42,11 +44,8 @@ lib/ORM/Ta.pm
 lib/ORM/Tjoin.pm
 lib/ORM/TjoinNull.pm
 lib/ORM/Tutorial.pod
-lib/ORM/Tutorial.pod.ru
-lib/ORMtut.pod
-lib/ORMtut.ru.pod
 Makefile.PL
-MANIFEST
+MANIFEST			This list of files
 META.yml
 README
 t/ORM-Date.t

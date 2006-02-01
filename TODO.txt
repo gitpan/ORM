@@ -1,4 +1,6 @@
 First queue:
+ * Optimize ORM::Expr:_between
+ * Throw exception if error is not handler by caller
  * Add 'grouping' flag to ORM::Tjoin object, forcing ORM::Db driver to group
    result set by object's id (after that replace 'SELECT DISTINCT' with plain 'SELECT')
  * ORM::Stat::stat method, using subqueries

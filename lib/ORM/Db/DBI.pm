@@ -1,15 +1,29 @@
 #
-# DESCRIPTION:
+# DESCRIPTION
 #   PerlORM - Object relational mapper (ORM) for Perl. PerlORM is Perl
 #   library that implements object-relational mapping. Its features are
 #   much similar to those of Java's Hibernate library, but interface is
 #   much different and easier to use.
 #
-# AUTHOR:
+# AUTHOR
 #   Alexey V. Akimov <akimov_alexey@sourceforge.net>
 #
 # COPYRIGHT
-#   Copyright (c) 2005 Alexey V. Akimov. All rights reserved.
+#   Copyright (C) 2005-2006 Alexey V. Akimov
+#
+#   This library is free software; you can redistribute it and/or
+#   modify it under the terms of the GNU Lesser General Public
+#   License as published by the Free Software Foundation; either
+#   version 2.1 of the License, or (at your option) any later version.
+#   
+#   This library is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#   Lesser General Public License for more details.
+#   
+#   You should have received a copy of the GNU Lesser General Public
+#   License along with this library; if not, write to the Free Software
+#   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #
 
 package ORM::Db::DBI;
@@ -274,7 +288,7 @@ sub select_full
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return $error->fatal ? undef : $fullres;
 }
 
@@ -403,7 +417,7 @@ sub insert_object
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return $id;
 }
 
@@ -435,7 +449,7 @@ sub update_object
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
 }
 
 sub update_object_part
@@ -572,7 +586,7 @@ sub delete_object
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
 }
 
 sub optimize_tables
@@ -612,7 +626,7 @@ sub referencing_classes
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return @res;
 }
 
@@ -806,7 +820,8 @@ sub select
         sql   => $query,
         error => $error->text,
     );
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
+
     return $arg{return_rows_count}
         ? ( $st && $st->rows != 4294967294 ? $st->rows : 0 )
         : (   

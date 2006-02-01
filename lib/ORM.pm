@@ -1,15 +1,29 @@
 #
-# DESCRIPTION:
+# DESCRIPTION
 #   PerlORM - Object relational mapper (ORM) for Perl. PerlORM is Perl
 #   library that implements object-relational mapping. Its features are
 #   much similar to those of Java's Hibernate library, but interface is
 #   much different and easier to use.
 #
-# AUTHOR:
+# AUTHOR
 #   Alexey V. Akimov <akimov_alexey@sourceforge.net>
 #
 # COPYRIGHT
-#   Copyright (c) 2005 Alexey V. Akimov. All rights reserved.
+#   Copyright (C) 2005-2006 Alexey V. Akimov
+#
+#   This library is free software; you can redistribute it and/or
+#   modify it under the terms of the GNU Lesser General Public
+#   License as published by the Free Software Foundation; either
+#   version 2.1 of the License, or (at your option) any later version.
+#   
+#   This library is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#   Lesser General Public License for more details.
+#   
+#   You should have received a copy of the GNU Lesser General Public
+#   License along with this library; if not, write to the Free Software
+#   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #
 
 package ORM;
@@ -35,7 +49,7 @@ use ORM::MetapropBuilder;
 use ORM::ResultSet;
 use ORM::StatResultSet;
 
-our $VERSION  = 0.81;
+our $VERSION  = 0.83;
 
 my $initialized;
 my $db;
@@ -142,7 +156,7 @@ sub new
     }
 
     $self->_cache->add( $self ) unless( $error->fatal );
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return $error->fatal ? undef : $self;
 }
 
@@ -271,7 +285,7 @@ sub find
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     
     return
         $arg{return_res}
@@ -333,7 +347,7 @@ sub find_id
             my $error = ORM::Error->new;
             $self->finish_loading( error=>$error );
             $self = undef if( ref $self eq 'ORM::Broken' || $error->fatal );
-            $arg{error} && $arg{error}->add( error=>$error );
+            $error->upto( $arg{error} );
         }
 
         $self && $class->_cache->add( $self );
@@ -396,7 +410,7 @@ sub find_or_new
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return $error->fatal ? undef : $obj[0];
 }
 
@@ -582,7 +596,7 @@ sub update
         $self->{_ORM_data} = \%old_prop;
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return undef;
 }
 
@@ -621,7 +635,7 @@ sub delete
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return undef;
 }
 
@@ -1110,7 +1124,7 @@ sub stat
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return $res;
 }
 
@@ -1176,7 +1190,7 @@ sub _property
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return $res;
 }
 
@@ -1484,7 +1498,7 @@ sub _fix_prop
         }
     }
 
-    $arg{error} && $arg{error}->add( error=>$error );
+    $error->upto( $arg{error} );
     return undef;
 }
 
@@ -1823,7 +1837,7 @@ sub _guess_table_name
     my $class = shift;
     my $table = shift;
 
-    $table =~ s/::/__/g;
+    $table =~ s/::/_/g;
 
     return $table;
 }

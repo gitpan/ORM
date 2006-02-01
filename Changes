@@ -1,5 +1,12 @@
 Revision history for Perl extension ORM.
 
+0.82.1
+    - Error handling using 'upto' method
+    - Little bit more documentation added
+
+0.82
+    - ORM/Tuturial.pod is almost finished
+
 0.81
     - Added support of 'preload' argument to ORM::Stat
     - Added support of predefined 'post_filter' to ORM::Stat
