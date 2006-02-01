@@ -1,5 +1,5 @@
 NAME
-    ORM - Object relational mapper for Perl.
+    ORM::Tutorial - Guided tour to ORM module.
 
 SYNOPSIS
     Purpose of this document is to brief introduce usage of PerlORM library

@@ -125,7 +125,7 @@ Return date string as returned by C<localtime> in scalar context.
 
 =item set_epoch( $epoch )
 
-Change object by resetting its epoch time as returned by C<epoch>.
+Change object by resetting its epoch time to <$epoch> value.
 
 =item copy()
 
@@ -143,20 +143,6 @@ Return object itself.
 =item datetime  
 
 Return C<ORM::datetime> object containing the same date.
-
-=back
-
-=head1 CLASS METHODS
-
-=over
-
-=item use_local_tz 
-
-Forse to treat all dates as dates in local timezone.
-
-=item use_utc_tz   
-
-Forse to treat all dates as dates in UTC timezone.
 
 =back
 

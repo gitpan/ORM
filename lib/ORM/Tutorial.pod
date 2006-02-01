@@ -1,6 +1,6 @@
 =head1 NAME
 
-ORM - Object relational mapper for Perl.
+ORM::Tutorial - Guided tour to ORM module.
 
 =head1 SYNOPSIS
 
