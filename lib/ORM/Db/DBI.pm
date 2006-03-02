@@ -127,7 +127,7 @@ sub select_base
     {
         for my $name ( keys %{$arg{data}} )
         {
-            $tjoin->merge( $arg{data}{$name}->_tjoin );
+            $tjoin->merge( $arg{data}{$name}->_tjoin ) if( defined $arg{data}{$name} );
         }
         for my $group_by ( @{$arg{group_by}} )
         {
@@ -174,10 +174,10 @@ sub select_base
         $select = '';
         for my $alias ( keys %{$arg{data}} )
         {
+            my $data = ref $arg{data}{$alias} ? $arg{data}{$alias} : ORM::Const->new( $arg{data}{$alias} );
+
             $select .= ",\n" if( $select );
-            $select .=
-                  '  ' . $arg{data}{$alias}->_sql_str( tjoin=>$tjoin )
-                . ' AS ' . $self->qi( $alias );
+            $select .= '  ' . $data->_sql_str( tjoin=>$tjoin ) . ' AS ' . $self->qi( $alias );
         }
     }
     else
@@ -255,7 +255,7 @@ sub select_full
 
         for my $inh_class ( keys %class2id )
         {
-            ORM->_load_ORM_class( $inh_class );
+            $arg{class}->_load_ORM_class( $inh_class );
             %residual_tables = ();
             chop $class2id{ $inh_class };
             for
@@ -396,7 +396,7 @@ sub insert_object
     }
 
     # Roll back if previous loop failed
-    if( $error->fatal )
+    if( $error->fatal && $id )
     {
         for( $i=$i-2; $i>=0; $i-- )
         {
@@ -614,7 +614,7 @@ sub referencing_classes
     (
         error => $error,
         query =>
-            'SELECT class,prop FROM _ORM_refs WHERE ref_class='
+            'SELECT class,prop FROM '.$self->qt('_ORM_refs').' WHERE ref_class='
             . $self->qc( $arg{class} )
     );
 
@@ -888,4 +888,4 @@ sub _lost_connection
 ## SQL FUNCTIONS
 ##
 
-sub _func_concat        { shift; ORM::Filter::Func->new( 'CONCAT', @_ ); }
+sub _func_concat { shift; ORM::Filter::Cmp->new( '||', @_ ); }

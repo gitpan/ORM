@@ -411,19 +411,6 @@ Use:
 
 Return name of C<initial class> for C<$class>.
 
-=head2 M
-
-  $M = $class->M;
-
-Return B<meta-object> of class C<$class>.
-
-=head2 _db
-
-  $db = $class->_db();
-
-Return object of class derived from C<ORM::Db>
-that is used to operate with database storage.
-
 =head2 history_is_enabled
 
 Use:
@@ -457,6 +444,19 @@ Use:
   $class->optimize_storage( error=>ORM::Error );
 
 This method simply calls SQL 'OPTIMIZE TABLE ...' or similar.
+
+=head2 M
+
+  $M = $class->M;
+
+Return B<meta-object> of class C<$class>.
+
+=head2 _db
+
+  $db = $class->_db();
+
+Return object of class derived from C<ORM::Db>
+that is used to operate with database storage.
 
 =head2 _plain_prop
 
@@ -806,7 +806,7 @@ value is undef.
 
 Use:
 
-  ORM->_init
+  $initial_class->_init
   (
       db                   => ORM::Db,
       history_class        => string||undef,
@@ -815,7 +815,7 @@ Use:
       default_cache_size   => integer,
   )
 
-Must be called in B<initial class> BEGIN-block to make basic setup.
+Must be called inside each B<initial class> to make basic setup.
 
 =over
 

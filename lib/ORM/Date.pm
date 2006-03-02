@@ -131,8 +131,19 @@ sub diff
     );
 }
 
-sub current    { shift->new_epoch( time ); }
-sub earlier24h { shift->new_epoch( time-24*60*60 ); }
+sub current
+{
+    my $class = shift;
+    my $date  = $class->new_epoch( time );
+    $class->new( [$date->year,$date->month,$date->mday,0,0,0] );
+}
+sub earlier24h
+{
+    my $class = shift;
+    my $date  = $class->new_epoch( time-24*60*60 );
+    $class->new( [$date->year,$date->month,$date->mday,0,0,0] );
+}
+
 sub date       { ORM::Date->new_epoch( $_[0]->epoch ); }
 sub datetime   { ORM::Datetime->new_epoch( $_[0]->epoch ); }
 

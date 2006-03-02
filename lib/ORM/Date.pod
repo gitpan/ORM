@@ -125,7 +125,7 @@ Return date string as returned by C<localtime> in scalar context.
 
 =item set_epoch( $epoch )
 
-Change object by resetting its epoch time to <$epoch> value.
+Change object by resetting its epoch time to C<$epoch> value.
 
 =item copy()
 

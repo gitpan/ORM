@@ -33,6 +33,7 @@ use strict;
 use warnings;
 use Carp;
 use Scalar::Util 'weaken';
+use base 'Class::Data::Inheritable';
 
 use ORM::Error;
 use ORM::Cache;
@@ -49,18 +50,16 @@ use ORM::MetapropBuilder;
 use ORM::ResultSet;
 use ORM::StatResultSet;
 
-our $VERSION  = 0.83;
+our $VERSION = 0.83;
 
-my $initialized;
-my $db;
-my $ta;
+ORM->mk_classdata( '_class_hier' );
+ORM->mk_classdata( '_db' );
+ORM->mk_classdata( '_history_class' );
+ORM->mk_classdata( '_default_prefer_lazy_load' );
+ORM->mk_classdata( '_emulate_foreign_keys' );
+ORM->mk_classdata( '_default_cache_size' );
 
-my $history_class;
-my $prefer_lazy_load;
-my $emulate_foreign_keys;
-my $default_cache_size;
-
-my %hier = ();
+my %ta;
 
 ##
 ## CONSTRUCTORS
@@ -136,7 +135,7 @@ sub new
 
     if( ! $arg{temporary} && ! $error->fatal )
     {
-        $self->{_ORM_data}{id} = $db->insert_object
+        $self->{_ORM_data}{id} = $class->_db->insert_object
         (
             id     => $arg{repair_id},
             object => $self,
@@ -150,7 +149,7 @@ sub new
         # Make record in history
         if( !$error->fatal && $history )
         {
-            $history_class->new( obj=>$self, created=>1, error=>$error );
+            $class->_history_class->new( obj=>$self, created=>1, error=>$error );
             $self->delete( error=>$error, history=>0 ) if( $error->fatal );
         }
     }
@@ -169,7 +168,7 @@ sub new
 sub count
 {
     my $class = shift;
-    $db->count( class=>$class, @_ );
+    $class->_db->count( class=>$class, @_ );
 }
 
 sub exists
@@ -237,7 +236,7 @@ sub find
         $res = ORM::ResultSet->new
         (
             class  => $class,
-            result => $db->select_base
+            result => $class->_db->select_base
             (
                 class    => $class,
                 filter   => $arg{filter},
@@ -255,7 +254,7 @@ sub find
     }
     else
     {
-        $res = $db->select_full
+        $res = $class->_db->select_full
         (
             class    => $class,
             filter   => $arg{filter},
@@ -421,23 +420,25 @@ sub find_or_new
 ## use: $ta = $class->new_transaction( error=>ORM::Error );
 ##
 ## Begins transaction.
-## Transaction will commit when object $ta will be destroyed.
+## Transaction commits when object $ta is destroyed.
 ##
 sub new_transaction
 {
-    my $self = shift;
-    my %arg  = @_;
+    my $class  = shift;
+    my $iclass = $class->initial_class;
+    my %arg    = @_;
     my $my_ta;
 
-    if( $ta )
+    if( $ta{$iclass} )
     {
         $my_ta = ORM::Ta->new;
     }
     else
     {
-        $my_ta = ORM::Ta->new( db=>$db, error=>$arg{error} );
-        $ta    = $my_ta;
-        weaken $ta;
+        $my_ta       = ORM::Ta->new( db=>$class->_db, error=>$arg{error} );
+        $ta{$iclass} = $my_ta;
+
+        weaken $ta{$iclass};
     }
 
     return $my_ta;
@@ -556,7 +557,7 @@ sub update
         # Update object
         unless( $error->fatal )
         {
-            $db->update_object
+            $class->_db->update_object
             (
                 object     => $self,
                 values     => \%changed_prop,
@@ -581,7 +582,7 @@ sub update
                     $self->{_ORM_data}{$prop_name}
                 ];
             }
-            $history_class->new
+            $class->_history_class->new
             (
                 error   => $error,
                 obj     => $self,
@@ -617,16 +618,16 @@ sub delete
             # Make record in history
             if( $history )
             {
-                $history_class->new( obj=>$self, deleted=>1, error=>$error );
+                $class->_history_class->new( obj=>$self, deleted=>1, error=>$error );
             }
         }
         unless( $error->fatal )
         {
-            $db->delete_object
+            $class->_db->delete_object
             (
                 object => $self,
                 error  => $error,
-                emulate_foreign_keys => $emulate_foreign_keys,
+                emulate_foreign_keys => $class->_emulate_foreign_keys,
             );
         }
         unless( $error->fatal )
@@ -695,7 +696,7 @@ sub finish_loading
     )
     {
         my $error = ORM::Error->new;
-        my $data  = $db->select_tables
+        my $data  = $class->_db->select_tables
         (
             id     => $self->id,
             tables => $self->{_ORM_missing_tables},
@@ -778,23 +779,15 @@ sub __ORM_new_db_value
     return $self;
 }
 
-sub base_class
+sub _class_info
 {
-    my $class = ref $_[0] ? ref shift : shift;
-    $hier{$class}{BASE_CLASS}
+    my $class = ref $_[0] || $_[0];
+    $class->_class_hier->{$class};
 }
 
-sub primary_class
-{
-    my $class = ref $_[0] ? ref shift : shift;
-    $hier{$class}{PRIMARY_CLASS}
-}
-
-sub initial_class
-{
-    my $class = ref $_[0] ? ref shift : shift;
-    $hier{$class}{INITIAL_CLASS}
-}
+sub base_class    { $_[0]->_class_info->{BASE_CLASS}; }
+sub primary_class { $_[0]->_class_info->{PRIMARY_CLASS}; }
+sub initial_class { $_[0]->_is_initial ? $_[0] : $_[0]->_class_info->{INITIAL_CLASS}; }
 
 sub M
 {
@@ -827,21 +820,13 @@ sub P
     );
 }
 
-sub metaprop_class
-{
-    my $self  = shift;
-    my $class = ( ref $self ) || $self;
+sub metaprop_class { $_[0]->_class_info->{METAPROP_CLASS}; }
 
-    return $hier{$class}{METAPROP_CLASS};
-}
-
-sub ql { $db->ql( $_[1] ); }
-sub qc { $db->qc( $_[1] ); }
-sub qi { $db->qi( $_[1] ); }
-sub qt { $db->qt( $_[1] ); }
-sub qf { $db->qf( $_[1] ); }
-sub _db { $db; }
-sub _history_class { $history_class; }
+sub ql { $_[0]->_db->ql( $_[1] ); }
+sub qc { $_[0]->_db->qc( $_[1] ); }
+sub qi { $_[0]->_db->qi( $_[1] ); }
+sub qt { $_[0]->_db->qt( $_[1] ); }
+sub qf { $_[0]->_db->qf( $_[1] ); }
 
 ## use: $state = $class->history_is_enabled;
 ## use: $state = $class->history_is_enabled( $new_state );
@@ -859,9 +844,9 @@ sub history_is_enabled
     {
         if( defined $_[0] )
         {
-            if( $hier{$class} )
+            if( $class->_class_info )
             {
-                $hier{$class}{HISTORY_IS_ENABLED} = $_[0];
+                $class->_class_info->{HISTORY_IS_ENABLED} = $_[0];
             }
             else
             {
@@ -870,13 +855,13 @@ sub history_is_enabled
         }
         else
         {
-            delete $hier{$class}{HISTORY_IS_ENABLED} if( $hier{$class} );
+            delete $class->_class_info->{HISTORY_IS_ENABLED} if( $class->_class_info );
         }
     }
 
-    exists $hier{$class}{HISTORY_IS_ENABLED}
-        ? $hier{$class}{HISTORY_IS_ENABLED}
-        : $history_class;
+    exists $class->_class_info->{HISTORY_IS_ENABLED}
+        ? $class->_class_info->{HISTORY_IS_ENABLED}
+        : $class->_history_class;
 }
 
 ## use: $state = $class->prefer_lazy_load;
@@ -895,17 +880,17 @@ sub prefer_lazy_load
     {
         if( defined $_[0] )
         {
-            $hier{$class}{PREFER_LAZY_LOAD} = $_[0];
+            $class->_class_info->{PREFER_LAZY_LOAD} = $_[0];
         }
         else
         {
-            delete $hier{$class}{PREFER_LAZY_LOAD};
+            delete $class->_class_info->{PREFER_LAZY_LOAD};
         }
     }
 
-    exists $hier{$class}{PREFER_LAZY_LOAD}
-        ? $hier{$class}{PREFER_LAZY_LOAD}
-        : $prefer_lazy_load;
+    exists $class->_class_info->{PREFER_LAZY_LOAD}
+        ? $class->_class_info->{PREFER_LAZY_LOAD}
+        : $class->_default_prefer_lazy_load;
 }
 
 sub _plain_prop
@@ -913,8 +898,8 @@ sub _plain_prop
     my $class = shift;
     my $prop  = shift;
 
-    exists( $hier{$class}{PROP}{$prop} )
-        && ( ! $hier{$class}{PROP}{$prop} );
+    exists( $class->_class_info->{PROP}{$prop} )
+        && ( ! $class->_class_info->{PROP}{$prop} );
 }
 sub _prop_is_ref
 {
@@ -922,36 +907,36 @@ sub _prop_is_ref
     my $prop   = shift;
     my $pclass = $class->_prop_class( $prop );
 
-    $pclass && $hier{$pclass} && $pclass;
+    $pclass && $class->_class_hier->{$pclass} && $pclass;
 }
 
-sub _is_sealed                { $hier{ref $_[0]||$_[0]}{SEALED}; }
-sub _prop_class               { $hier{$_[0]}{PROP}{$_[1]}; }
-sub _prop_default_value       { $hier{$_[0]}{PROP_DEFAULT_VALUE}{$_[1]}; }
-sub _has_prop                 { exists $hier{$_[0]}{PROP}{$_[1]}; }
-sub _prop2table               { $hier{$_[0]}{PROP2TABLE_MAP}{$_[1]}; }
-sub _prop2field               { $hier{$_[0]}{PROP2FIELD_MAP}{$_[1]}; }
-sub _is_intermediate          { $hier{$_[0]}{INTERMEDIATE}; }
-sub _is_initial               { !$hier{$_[0]}; }
-sub _db_table                 { $hier{$_[0]}{TABLE}[$_[1]]; }
-sub _db_tables_str            { $hier{$_[0]}{TABLES_STR}; }
-sub _db_tables_count          { scalar( @{$hier{$_[0]}{TABLE}} ); }
-sub _db_tables                { @{$hier{$_[0]}{TABLE}}; }
-sub _db_tables_ref            { $hier{$_[0]}{TABLE}; }
-sub _db_table_fields          { keys %{$hier{$_[0]}{TABLE_STRUCT}{$_[1]}}; }
-sub _db_tables_inner_join     { $hier{$_[0]}{TABLES_INNER_JOIN}; }
-sub _not_mandatory_props      { keys %{$hier{$_[0]}{PROP2FIELD_MAP}}; }
-sub _all_props                { ( 'id', 'class', keys %{$hier{$_[0]}{PROP2FIELD_MAP}} ); }
-sub _cache                    { $hier{( ref $_[0] || $_[0] )->primary_class}{CACHE}; }
+sub _is_sealed                { $_[0]->_class_info->{SEALED}; }
+sub _prop_class               { $_[0]->_class_info->{PROP}{$_[1]}; }
+sub _prop_default_value       { $_[0]->_class_info->{PROP_DEFAULT_VALUE}{$_[1]}; }
+sub _has_prop                 { exists $_[0]->_class_info->{PROP}{$_[1]}; }
+sub _prop2table               { $_[0]->_class_info->{PROP2TABLE_MAP}{$_[1]}; }
+sub _prop2field               { $_[0]->_class_info->{PROP2FIELD_MAP}{$_[1]}; }
+sub _is_intermediate          { $_[0]->_class_info->{INTERMEDIATE}; }
+sub _is_initial               { !$_[0]->_class_info; }
+sub _db_table                 { $_[0]->_class_info->{TABLE}[$_[1]]; }
+sub _db_tables_str            { $_[0]->_class_info->{TABLES_STR}; }
+sub _db_tables_count          { scalar( @{$_[0]->_class_info->{TABLE}} ); }
+sub _db_tables                { @{$_[0]->_class_info->{TABLE}}; }
+sub _db_tables_ref            { $_[0]->_class_info->{TABLE}; }
+sub _db_table_fields          { keys %{$_[0]->_class_info->{TABLE_STRUCT}{$_[1]}}; }
+sub _db_tables_inner_join     { $_[0]->_class_info->{TABLES_INNER_JOIN}; }
+sub _not_mandatory_props      { keys %{$_[0]->_class_info->{PROP2FIELD_MAP}}; }
+sub _all_props                { ( 'id', 'class', keys %{$_[0]->_class_info->{PROP2FIELD_MAP}} ); }
+sub _cache                    { $_[0]->primary_class->_class_info->{CACHE}; }
 
 sub _rev_refs
 {
     my $class = shift;
-    my @refs  = values %{$hier{$class}{REV_REFS}};
+    my @refs  = values %{$class->_class_info->{REV_REFS}};
 
-    if( $hier{$class}{BASE_CLASS} )
+    if( $class->_class_info->{BASE_CLASS} )
     {
-        push @refs, $hier{$class}{BASE_CLASS}->_rev_refs;
+        push @refs, $class->_class_info->{BASE_CLASS}->_rev_refs;
     }
 
     return @refs;
@@ -963,7 +948,7 @@ sub _has_rev_ref
     my $rev_class = shift;
     my $rev_prop  = shift;
 
-    $hier{$class}{REV_REFS}{ $rev_class.' '.$rev_prop }
+    $class->_class_info->{REV_REFS}{ $rev_class.' '.$rev_prop }
     || (
         $rev_class->base_class
         && $class->_has_rev_ref( $rev_class->base_class, $rev_prop )
@@ -1074,7 +1059,7 @@ sub stat
         }
 
         # Fetch result set
-        $res = $db->select_stat
+        $res = $class->_db->select_stat
         (
             class       => $class,
             data        => \%data,
@@ -1130,8 +1115,8 @@ sub stat
 
 ## use: $prop = $obj->_property
 ## (
-##     name     => string,
-##     error    => ORM::Error,
+##     name      => string,
+##     error     => ORM::Error,
 ## );
 ##
 ## 'name'   - is name of the property corresponding to field name in DB table
@@ -1286,7 +1271,7 @@ sub AUTOLOAD
 sub optimize_storage
 {
     my $class = shift;
-    $db->optimize_tables( class=>$class );
+    $class->_db->optimize_tables( class=>$class );
 }
 
 ##
@@ -1304,7 +1289,7 @@ sub _find_constructor
     {
         if( $prop->{class} )
         {
-            ORM->_load_ORM_class( $prop->{class} );
+            $class->_load_ORM_class( $prop->{class} );
             $self = bless { _ORM_data => $prop }, $prop->{class};
 
             if( $result_tables )
@@ -1508,37 +1493,27 @@ sub _fix_prop
 ##     history_class        => string||undef,
 ##     prefer_lazy_load     => boolean,
 ##     emulate_foreign_keys => boolean,
+##     default_cache_size   => integer,
 ## )
-##
-## _init вызывается в дочернем инициализирующем классе от
-## которого в последствии наследуются все классы модели.
 ##
 sub _init
 {
     my $class = shift;
     my %arg   = @_;
 
-    if( $initialized )
-    {
-        die "At present it is imposible to derive more that one control class from ORM";
-    }
-    else
-    {
-        die "'db' argument not specified"                   unless( exists $arg{db} );
-        die "'db' argument is specified but undefined"      unless( $arg{db} );
-        die "'db' argument specified is not descendant of 'ORM::Db'" unless( UNIVERSAL::isa( $arg{db}, 'ORM::Db' ) );
-        die "'prefer_lazy_load' argument not specified"     unless( exists $arg{prefer_lazy_load} );
-        die "'emulate_foreign_keys' argument not specified" unless( exists $arg{emulate_foreign_keys} );
-        die "'default_cache_size' argument not specified" unless( exists $arg{default_cache_size} );
+    die "'db' argument not specified"                   unless( exists $arg{db} );
+    die "'db' argument is specified but undefined"      unless( $arg{db} );
+    die "'db' argument specified is not descendant of 'ORM::Db'" unless( UNIVERSAL::isa( $arg{db}, 'ORM::Db' ) );
+    die "'prefer_lazy_load' argument not specified"     unless( exists $arg{prefer_lazy_load} );
+    die "'emulate_foreign_keys' argument not specified" unless( exists $arg{emulate_foreign_keys} );
+    die "'default_cache_size' argument not specified"   unless( exists $arg{default_cache_size} );
 
-        $initialized = 1;
-
-        $db                   = $arg{db};
-        $history_class        = $arg{history_class};
-        $prefer_lazy_load     = $arg{prefer_lazy_load};
-        $emulate_foreign_keys = $arg{emulate_foreign_keys};
-        $default_cache_size   = $arg{default_cache_size};
-    }
+    $class->_class_hier( {} );
+    $class->_db( $arg{db} );
+    $class->_history_class( $arg{history_class} );
+    $class->_default_prefer_lazy_load( $arg{prefer_lazy_load} );
+    $class->_emulate_foreign_keys( $arg{emulate_foreign_keys} );
+    $class->_default_cache_size( $arg{default_cache_size} );
 }
 
 ## use: $base_class->_derive
@@ -1551,20 +1526,19 @@ sub _init
 ##     prefer_lazy_load   => boolean,
 ## )
 ##
-## Should be called in BEGIN{...} of every derived class
-##
 sub _derive
 {
     my $class   = shift;
     my %arg     = @_;
     my $error   = ORM::Error->new;
-    my $base    = $hier{$class};
+    my $base    = $class->_class_info;
     my $derived;
     my $struct;
     my $defaults;
     my $table;
 
-    $derived = $hier{$arg{derived_class}} = {};
+    $derived = {};
+    $class->_class_hier->{$arg{derived_class}} = $derived;
 
     # Copy SQL configuration from base class
     if( $base )
@@ -1599,7 +1573,7 @@ sub _derive
     {
         $derived->{INITIAL_CLASS} = $class;
         $derived->{PRIMARY_CLASS} = $arg{derived_class};
-        $derived->{CACHE}         = ORM::Cache->new( size=>($arg{cache_size}||$default_cache_size) );
+        $derived->{CACHE}         = ORM::Cache->new( size=>($arg{cache_size}||$class->_default_cache_size) );
     }
 
     unless( $error->fatal )
@@ -1622,22 +1596,22 @@ sub _derive
         {
             $derived->{PREFER_LAZY_LOAD} = $arg{prefer_lazy_load};
         }
-            
+
         # Detect db table name
         $table = $arg{table} || $class->_guess_table_name( $arg{derived_class} );
     }
 
     if( $table )
     {
-        ( $struct, $defaults ) = $db->table_struct
+        ( $struct, $defaults ) = $class->_db->table_struct
         (
             class => $arg{derived_class},
             table => $table,
             error => $error,
         );
-        if( $history_class && $arg{derived_class} eq $history_class )
+        if( $class->_history_class && $arg{derived_class} eq $class->_history_class )
         {
-            $struct->{slaved_by} = $history_class;
+            $struct->{slaved_by} = $class->_history_class;
         }
         # Check whether table exists
         if( ! scalar( %$struct ) )
@@ -1677,7 +1651,7 @@ sub _derive
             {
                 $derived->{TABLES_INNER_JOIN} .= ' AND ' if( $derived->{TABLES_INNER_JOIN} );
                 $derived->{TABLES_INNER_JOIN} .=
-                    $db->qt( $table ).'.id = '.$db->qt( $derived->{TABLE}[0] ).'.id';
+                    $class->_db->qt( $table ).'.id = '.$class->_db->qt( $derived->{TABLE}[0] ).'.id';
             }
         }
         # Initialize
@@ -1705,7 +1679,7 @@ sub _derive
                     if( $field ne 'class' )
                     {
                         $derived->{PROP2FIELD_MAP}{$field} =
-                            $db->qt( $table ) . '.' . $db->qf( $field );
+                            $class->_db->qt( $table ) . '.' . $class->_db->qf( $field );
                     }
                 }
                 else
@@ -1714,7 +1688,7 @@ sub _derive
                     (
                         "Duplicate columns "
                         . "'$derived->{PROP2FIELD_MAP}{$field}',"
-                        . " '".$db->qt($table).'.'.$db->qf($field)."'"
+                        . " '".$class->_db->qt($table).'.'.$class->_db->qf($field)."'"
                     );
                     last;
                 }
@@ -1731,7 +1705,7 @@ sub _derive
             {
                 $derived->{TABLES_STR} .= ',';
             }
-            $derived->{TABLES_STR} .= $db->qt( $table );
+            $derived->{TABLES_STR} .= $class->_db->qt( $table );
             $derived->{TABLE_STRUCT}{$table} = $struct;
             push @{$derived->{TABLE}}, $table;
         }
@@ -1763,14 +1737,14 @@ sub _derive
         for my $prop ( keys %{$derived->{TABLE_STRUCT}{$table}} )
         {
             my $pclass = $derived->{PROP}{$prop};
-            if( $pclass && !$hier{$pclass} )
+            if( $pclass && !$class->_class_hier->{$pclass} )
             {
                 $require{$pclass} = 1;
             }
         }
-        for my $pclass ( $db->referencing_classes( class=>$arg{derived_class}, error=>$error ) )
+        for my $pclass ( $class->_db->referencing_classes( class=>$arg{derived_class}, error=>$error ) )
         {
-            $require{$pclass->{class}} = 1 unless( $hier{$pclass->{class}} );
+            $require{$pclass->{class}} = 1 unless( $class->_class_hier->{$pclass->{class}} );
             $derived->{REV_REFS}{ $pclass->{class}.' '.$pclass->{prop} }
                 = [ $pclass->{class}, $pclass->{prop} ];
         }
@@ -1786,9 +1760,9 @@ sub _derive
         {
             my $pclass = $derived->{PROP}{$prop};
             my $key    = "$arg{derived_class} $prop";
-            if( $pclass && $hier{$pclass} && !$hier{$pclass}{REV_REFS}{$key} )
+            if( $pclass && $class->_class_hier->{$pclass} && !$pclass->_class_info->{REV_REFS}{$key} )
             {
-                $hier{$pclass}->{REV_REFS}{$key} = [ $arg{derived_class}, $prop ];
+                $pclass->_class_info->{REV_REFS}{$key} = [ $arg{derived_class}, $prop ];
             }
         }
 
@@ -1796,7 +1770,7 @@ sub _derive
         for my $prop ( keys %{$derived->{TABLE_STRUCT}{$table}} )
         {
             my $pclass = $derived->{PROP}{$prop};
-            if( $pclass && !$hier{$pclass} )
+            if( $pclass && !$class->_class_hier->{$pclass} )
             {
                 ORM::Metaprop->_class2metaclass( $pclass );
             }
@@ -1828,7 +1802,7 @@ sub _values_are_not_equal
 ## (ORM->_derive)
 ##
 
-sub _class_is_primary         { ! exists $hier{ $_[1] }{TABLE}; }
+sub _class_is_primary         { ! exists $_[1]->_class_info->{TABLE}; }
 
 ## use: $table_name = $class->_guess_table_name( $obj_class );
 ##
@@ -1871,6 +1845,10 @@ sub _db_type_to_class
     {
         $prop_class = 'ORM::Datetime';
     }
+    elsif( ( lc $type ) eq 'timestamp' )
+    {
+        $prop_class = 'ORM::Datetime';
+    }
 
     return $prop_class;
 }
@@ -1882,7 +1860,7 @@ sub _load_ORM_class
     my $class      = shift;
     my $load_class = shift;
 
-    unless( $hier{$load_class} )
+    unless( $class->_class_hier->{$load_class} )
     {
         $load_class .= '.pm';
         $load_class  =~ s(::)(/)g;

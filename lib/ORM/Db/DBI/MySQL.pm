@@ -182,6 +182,7 @@ sub table_struct
         }
     }
 
+    ## Check whether table's engine supports transactions
     unless( $error->fatal )
     {
         $res  = $self->select( error=>$error, query=>( 'SHOW TABLE STATUS LIKE '.$self->ql( $arg{table} ) ) );
@@ -208,7 +209,7 @@ sub table_struct
         $res = $self->select
         (
             error => $error,
-            query => 'SELECT * FROM _ORM_refs WHERE class='.$self->qc( $arg{class} ),
+            query => 'SELECT * FROM '.$self->qt('_ORM_refs').' WHERE class='.$self->qc( $arg{class} ),
         );
         unless( $error->fatal )
         {
@@ -254,3 +255,9 @@ sub pwd
         return undef;
     }
 }
+
+##
+## SQL FUNCTIONS
+##
+
+sub _func_concat        { shift; ORM::Filter::Func->new( 'CONCAT', @_ ); }

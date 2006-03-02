@@ -57,7 +57,7 @@ sub new
 
     $self->{sql}    = $arg{sql};
     $self->{error}  = $arg{error};
-    $self->{date}   = ORM::Date->current;
+    $self->{date}   = ORM::Datetime->current;
     $self->{caller} = $caller;
 
     bless $self, $class;

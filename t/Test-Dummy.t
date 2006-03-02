@@ -9,7 +9,7 @@ BEGIN
     use_ok( 'Test::Dummy::Child1' );
 }
 
-#ORM::DbLog->write_to_stdout( 1 ); Test::ORM->history_is_enabled( 0 );
+#ORM::DbLog->write_to_stdout( 1 );
 #Test::Dummy->_cache->change_size( 0 );
 
 my $error;

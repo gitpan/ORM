@@ -67,25 +67,23 @@ use overload
 ## CONSTRUCTORS
 ## 
 
-sub _lt  { shift; ORM::Filter::Cmp->new( '<',  _re_args( @_ ) ); }
-sub _le  { shift; ORM::Filter::Cmp->new( '<=', _re_args( @_ ) ); }
-sub _gt  { shift; ORM::Filter::Cmp->new( '>',  _re_args( @_ ) ); }
-sub _ge  { shift; ORM::Filter::Cmp->new( '>=', _re_args( @_ ) ); }
-sub _eq  { shift; ORM::Filter::Cmp->new( '=',  _re_args( @_ ) ); }
-sub _ne  { shift; ORM::Filter::Cmp->new( '!=', _re_args( @_ ) ); }
+sub _lt  { ORM::Filter::Cmp->new( '<',  _autoshift( @_ ) ); }
+sub _le  { ORM::Filter::Cmp->new( '<=', _autoshift( @_ ) ); }
+sub _gt  { ORM::Filter::Cmp->new( '>',  _autoshift( @_ ) ); }
+sub _ge  { ORM::Filter::Cmp->new( '>=', _autoshift( @_ ) ); }
+sub _eq  { ORM::Filter::Cmp->new( '=',  _autoshift( @_ ) ); }
+sub _ne  { ORM::Filter::Cmp->new( '!=', _autoshift( @_ ) ); }
 
-sub _div { shift; ORM::Filter::Cmp->new( '/',  _re_args( @_ ) ); }
-sub _mul { shift; ORM::Filter::Cmp->new( '*',  _re_args( @_ ) ); }
-sub _add { shift; ORM::Filter::Cmp->new( '+',  _re_args( @_ ) ); }
-sub _sub { shift; ORM::Filter::Cmp->new( '-',  _re_args( @_ ) ); }
-sub _neg { shift; ORM::Filter::Func->new( '-', $_[0] ); }
+sub _div { ORM::Filter::Cmp->new( '/',  _autoshift( @_ ) ); }
+sub _mul { ORM::Filter::Cmp->new( '*',  _autoshift( @_ ) ); }
+sub _add { ORM::Filter::Cmp->new( '+',  _autoshift( @_ ) ); }
+sub _sub { ORM::Filter::Cmp->new( '-',  _autoshift( @_ ) ); }
+sub _neg { ORM::Filter::Func->new( '-', _autoshift( @_ ) ); }
 
-sub _and { shift; ORM::Filter::Group->new( 'AND', @_ ); }
-sub _or  { shift; ORM::Filter::Group->new( 'OR',  @_ ); }
-sub _not { shift; ORM::Filter::Func->new( '!', $_[0] ); }
+sub _and { ORM::Filter::Group->new( 'AND', _autoshift( @_ ) ); }
+sub _or  { ORM::Filter::Group->new( 'OR',  _autoshift( @_ ) ); }
+sub _not { ORM::Filter::Func->new(  '!',   _autoshift( @_ ) ); }
 
-sub _bit_and    { shift; ORM::Filter::Cmp->new( '&', _re_args( @_ ) ); }
-sub _bit_or     { shift; ORM::Filter::Cmp->new( '|', _re_args( @_ ) ); }
 sub _brackets   { shift; ORM::Filter::Func->new( '', @_ ); }
 
 sub _func       { shift; ORM::Filter::Func->new( @_ ); }
@@ -100,8 +98,11 @@ sub _interval_days   { shift; ORM::Filter::Interval->new( 'DAY',   $_[0] ); }
 ## PROPERTIES
 ##
 
-sub _date_format     { ORM::Filter::Func->new( 'DATE_FORMAT', $_[0], $_[1] ); }
+sub _date_format   { ORM::Filter::Func->new( 'DATE_FORMAT', $_[0], $_[1] ); }
+sub _time          { ORM::Filter::Func->new( 'TIME', $_[0] ); }
 
+sub _bit_and       { ORM::Filter::Cmp->new( '&', _autoshift( @_ ) ); }
+sub _bit_or        { ORM::Filter::Cmp->new( '|', _autoshift( @_ ) ); }
 sub _match         { ORM::Filter::Cmp->new( 'REGEXP', @_ ); }
 sub _regexp        { ORM::Filter::Cmp->new( 'REGEXP', @_ ); }
 sub _like          { ORM::Filter::Cmp->new( 'LIKE', @_ ); }
@@ -125,6 +126,7 @@ sub _replace
 {
     ORM::Filter::Func->new( 'REPLACE', $_[0], $_[1], $_[2] );
 }
+sub _between { ( $_[0] >= $_[1] ) & ( $_[0] <= $_[2] ); }
 sub _in
 {
     my $op1 = shift;
@@ -153,6 +155,7 @@ sub _count      { ORM::Filter::Func->new( 'COUNT', @_ ); }
 ## PROTECTED
 ##
 
-sub _tjoin   { die "You forget to override '_tjoin' in '$_[0]'"; }
-sub _sql_str { die "You forget to override '_sql_str' in '$_[0]'"; }
-sub _re_args { $_[2] ? ( $_[1], $_[0] ) : ( $_[0], $_[1] ); }
+sub _tjoin     { die "You forget to override '_tjoin' in '$_[0]'"; }
+sub _sql_str   { die "You forget to override '_sql_str' in '$_[0]'"; }
+sub _re_args   { $_[2] ? ( $_[1], $_[0] ) : ( $_[0], $_[1] ); }
+sub _autoshift { ( ! ref $_[0] && shift @_ ); @_; }

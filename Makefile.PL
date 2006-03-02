@@ -5,8 +5,12 @@ use ExtUtils::MakeMaker;
 WriteMakefile
 (
     NAME              => 'ORM',
-    VERSION_FROM      => 'lib/ORM.pm', # finds $VERSION
-    PREREQ_PM         => { 'DBD::SQLite'=>1.11 }, # e.g., Module::Name => 1.1
+    VERSION_FROM      => 'lib/ORM.pm',
+    PREREQ_PM         =>
+    {
+        'DBD::SQLite'              => 1.11,
+        'Class::Data::Inheritable' => 0.02,
+    },
     (
         $] >= 5.005
         ? ## Add these new keywords supported since 5.005

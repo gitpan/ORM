@@ -146,6 +146,19 @@ sub upto
 ## OBJECT PROPERTIES
 ##
 
+sub short_text
+{
+    my $self = shift;
+    my $text = '';
+
+    for( @{$self->{list}} )
+    {
+        $text .= "* $_->{comment}\n";
+    }
+
+    return $text;
+}
+
 sub text
 {
     my $self = shift;

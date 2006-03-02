@@ -191,7 +191,7 @@ sub table_struct
         $res = $self->select
         (
             error => $error,
-            query => 'SELECT * FROM _ORM_refs WHERE class='.$self->qc( $arg{class} ),
+            query => 'SELECT * FROM '.$self->qt('_ORM_refs').' WHERE class='.$self->qc( $arg{class} ),
         );
         unless( $error->fatal )
         {
@@ -223,4 +223,3 @@ sub _lost_connection
 ## SQL FUNCTIONS
 ##
 
-sub _func_concat        { shift; ORM::Filter::Cmp->new( '||', @_ ); }

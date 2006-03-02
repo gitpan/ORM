@@ -11,7 +11,7 @@ on simple example. Example is 'Tasks Planner' (or 'Todo List') application.
 
 Let's start with simple object model, which will be improved
 and modified as needed later.
-Object classes of our example application is:
+Object classes of our example application are:
 
 =over
 
@@ -60,23 +60,20 @@ File Todo/ORM.pm
   use ORM::Db::DBI::MySQL;
   use base 'ORM';
   
-  BEGIN
-  {
-      ORM->_init
-      (
-          prefer_lazy_load     => 0,
-          emulate_foreign_keys => 1,
-          default_cache_size   => 200,
+  Todo::ORM->_init
+  (
+      prefer_lazy_load     => 0,
+      emulate_foreign_keys => 1,
+      default_cache_size   => 200,
   
-          db => ORM::Db::DBI::MySQL->new
-          (
-              host        => 'localhost',
-              database    => 'todo_list',
-              user        => 'root',
-              password    => '',
-          ),
-      );
-  }
+      db => ORM::Db::DBI::MySQL->new
+      (
+          host        => 'localhost',
+          database    => 'todo_list',
+          user        => 'root',
+          password    => '',
+      ),
+  );
   
   1;
 
@@ -770,7 +767,7 @@ To enable built-in feature to trace object changes
 simply use C<history_class> argument to C<ORM::_init>
 method as shown below:
 
-  ORM->_init
+  Todo::ORM->_init
   (
       history_class => 'Todo::History',
       %another_args,

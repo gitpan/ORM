@@ -32,3 +32,5 @@ $VERSION = 0.8;
 
 use base 'ORM::Date';
 
+sub current    { shift->new_epoch( time ); }
+sub earlier24h { shift->new_epoch( time-24*60*60 ); }

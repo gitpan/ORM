@@ -1,0 +1,16 @@
+v0.83
+Release notes:
+
+    Initial classes now must be initialized by
+    
+        package My::OrmInitClass;
+        use base 'ORM';
+        My::OrmInitClass->_init( ... );
+    
+    instead of
+    
+        package My::OrmInitClass;
+        use base 'ORM';
+        BEGIN { ORM->_init( ... ); }
+    
+    This change is for allowing multiple object models in the same program. 
