@@ -1,5 +1,9 @@
 Revision history for Perl extension ORM.
 
+0.84
+    - Dual error handling mechanism implemented, now errors can be
+      handled using exceptions
+
 0.83
     - ORM::Db::DBI::PgSQL storage driver implemented
     - Allowed use of multiple object models in one program

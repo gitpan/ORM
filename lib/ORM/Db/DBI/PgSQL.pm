@@ -52,6 +52,7 @@ sub new
     my $self;
 
     $arg{driver}              = $arg{pure_perl_driver} ? 'PgPP' : 'Pg';
+    $arg{data_source}         = "DBI:Pg:dbname='$arg{database}';host='$arg{host}';port=".($arg{port}||5432);
     $self                     = $class->SUPER::new( %arg );
     $self->{pure_perl_driver} = $arg{pure_perl_driver};
 

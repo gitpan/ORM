@@ -55,20 +55,27 @@ sub new
     my $class = shift;
     my $self  = {};
     my %arg   = @_;
+    my $data_source;
 
     $self->{connect_retries} = defined $arg{connect_retries} ? int( $arg{connect_retries} ) : 3;
     $self->{retry_sleep}     = defined $arg{retry_sleep}     ? int( $arg{retry_sleep} )     : 1;
     $self->{delayed_connect} = $arg{delayed_connect};
     $self->{database}        = $arg{database};
-    $self->{db_arg}          =
-    [
-        "DBI:$arg{driver}:$arg{database}"
+
+    if( $arg{data_source} )
+    {
+        $data_source = $arg{data_source};
+    }
+    else
+    {
+        $data_source =
+            "DBI:$arg{driver}:$arg{database}"
             . ($arg{host}    ? ":$arg{host}" : '')
-            . ($arg{options} ? ";$arg{options}" : ''),
-        $arg{user},
-        $arg{password},
-    ];
-    $self->{db} = DBI->connect( @{$self->{db_arg}} ) unless( $arg{delayed_connect} );
+            . ($arg{options} ? ";$arg{options}" : '');
+    }
+
+    $self->{db_arg} = [ $data_source, $arg{user}, $arg{password} ];
+    $self->{db}     = DBI->connect( @{$self->{db_arg}} ) unless( $arg{delayed_connect} );
 
     return bless $self, $class;
 }

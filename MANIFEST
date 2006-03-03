@@ -13,6 +13,7 @@ lib/ORM/Datetime.pod
 lib/ORM/Db.pm
 lib/ORM/Db/DBI.pm
 lib/ORM/Db/DBI/MySQL.pm
+lib/ORM/Db/DBI/MySQLemTA.pm
 lib/ORM/Db/DBI/PgSQL.pm
 lib/ORM/Db/DBI/SQLite.pm
 lib/ORM/Db/DBIResultSet.pm
@@ -60,7 +61,6 @@ t/Test-DB.SQLite.sql
 t/Test-Dummy-Child2.t
 t/Test-Dummy-NoTable.t
 t/Test-Dummy.t
-t/Test.db
 t/Test/Dummy.pm
 t/Test/Dummy/Child1.pm
 t/Test/Dummy/Child2.pm
