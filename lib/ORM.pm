@@ -59,6 +59,9 @@ ORM->mk_classdata( '_default_prefer_lazy_load' );
 ORM->mk_classdata( '_emulate_foreign_keys' );
 ORM->mk_classdata( '_default_cache_size' );
 
+## We can not use Class::Data::Inheritable for storing
+## current transactions, because Class::Data::Inheritable
+## do not allow to create weaken references.
 my %ta;
 
 ##
@@ -96,6 +99,7 @@ sub new
     my $class   = shift;
     my %arg     = @_;
     my $error   = ORM::Error->new;
+    my $ta      = $class->new_transaction( error=>$error );
     my $self    = {};
     my $history = defined $arg{history} ? $arg{history} : $class->history_is_enabled;
 
@@ -130,7 +134,7 @@ sub new
     unless( $error->fatal )
     {
         # Check validity of object data
-        $self->_validate_prop( prop=>$self->{_ORM_data}, error=>$error );
+        $self->_validate_prop( prop=>$self->{_ORM_data}, method=>'new', error=>$error );
     }
 
     if( ! $arg{temporary} && ! $error->fatal )
@@ -150,11 +154,12 @@ sub new
         if( !$error->fatal && $history )
         {
             $class->_history_class->new( obj=>$self, created=>1, error=>$error );
-            $self->delete( error=>$error, history=>0 ) if( $error->fatal );
         }
+
+        # Cache object
+        $self->_cache->add( $self ) unless( $error->fatal );
     }
 
-    $self->_cache->add( $self ) unless( $error->fatal );
     $error->upto( $arg{error} );
     return $error->fatal ? undef : $self;
 }
@@ -299,28 +304,6 @@ sub find
 ##     error     => ORM::Error,
 ## );
 ##
-## In this context 'lazy_load' means that object will
-## not be loaded at all. Loading of object data
-## will be delayed until its properties will be demanded.
-##
-## find_id() with 'lazy_load' mostly useful when utilized
-## by ORM->stat().
-##
-## Если параметр lazy_load == undef, по умолчанию происходит
-## полная загрузка объекта, независимо от значения свойства
-## prefer_lazy_load().
-##
-## При использовании find_id() с параметром 'lazy_load' важно помнить
-## об отсутствии возможности определить фактический класс объекта
-## во время конструирования, поэтому объект создается как представитель
-## класса $class, для которого был вызван find_id().
-## В последствии при явном или неявном вызове finish_loading()
-## класс объекта меняется на фактический, до этого момента Вы можете
-## работать с объектом только как с представителем класса $class.
-##
-## finish_loading() вызывается неявно в методе update() и при вызове
-## свойства, находящегося в незагруженной таблице.
-##
 sub find_id
 {
     my $class = shift;
@@ -458,6 +441,7 @@ sub update
     my $class    = ref $self;
     my %arg      = @_;
     my $error    = ORM::Error->new;
+    my $ta       = $class->new_transaction( error=>$error );
     my $history  = defined $arg{history} ? $arg{history} : $class->history_is_enabled;
     my %changed_prop;
     my %expr_prop;
@@ -527,7 +511,7 @@ sub update
     # User validations
     unless( $error->fatal )
     {
-        $self->_validate_prop( prop=>\%changed_prop, error=>$error );
+        $self->_validate_prop( prop=>\%changed_prop, method=>'update', error=>$error );
     }
     # Detect data changes again to consider changes in _validate_prop
     unless( $error->fatal )
@@ -547,7 +531,7 @@ sub update
         }
     }
 
-    if( $self->id && !$error->fatal && scalar( %changed_prop ) )
+    if( !$self->is_temporary && !$error->fatal && scalar( %changed_prop ) )
     {
         for my $prop ( keys %expr_prop )
         {
@@ -609,9 +593,10 @@ sub delete
     my $class   = ref $self;
     my %arg     = @_;
     my $error   = ORM::Error->new;
+    my $ta      = $class->new_transaction( error=>$error );
     my $history = defined $arg{history} ? $arg{history} : $class->history_is_enabled;
 
-    if( $self->id )
+    unless( $self->is_temporary )
     {
         unless( $error->fatal )
         {
@@ -975,11 +960,6 @@ sub _has_rev_ref
 ##     return_res  => boolean,
 ## )
 ##
-## Если 'count' установлен, то результатом выполнения
-## метода будет количество строк в статистике а не
-## сама статистика. page и pagesize не имеют смысла
-## при установленном count.
-##
 sub stat
 {
     my $class    = shift;
@@ -1073,6 +1053,7 @@ sub stat
         );
     }
 
+    # Final step, prepare resulting data
     if( $res && !$error->fatal )
     {
         if( $arg{count} )
@@ -1125,6 +1106,7 @@ sub stat
 ##            either object referenced by id in DB,
 ##            or object referenced by value in DB
 ##
+sub _prop { shift->_property( @_ ); }
 sub _property
 {
     my $self   = shift;
@@ -1191,11 +1173,13 @@ sub _property
 ##            either object referenced by id in DB,
 ##            or object referenced by value in DB
 ##
+sub _prop_id { shift->_property_id( @_ ); }
 sub _property_id
 {
     my $self   = shift;
     my %arg;
     my $prop;
+    my $value;
 
     if( @_ == 1 )
     {
@@ -1207,14 +1191,23 @@ sub _property_id
         $prop = $arg{name};
     }
 
-    if( exists $self->{_ORM_missing_tables} )
+    if( $prop eq 'class' )
     {
-        $self->finish_loading( prop=>$prop, error=>$arg{error} )
+        $value = $self->class;
+    }
+    else
+    {
+        if( exists $self->{_ORM_missing_tables} )
+        {
+            $self->finish_loading( prop=>$prop, error=>$arg{error} );
+        }
+        $value = $self->{_ORM_data}{$prop};
     }
 
-    return $self->{_ORM_data}{$prop};
+    return $value;
 }
 
+sub _rev { shift->_rev_prop( @_ ); }
 sub _rev_prop
 {
     my $self      = shift;
@@ -1229,6 +1222,7 @@ sub _rev_prop
     }
 }
 
+sub _rev_count { shift->_rev_prop_count( @_ ); }
 sub _rev_prop_count
 {
     my $self      = shift;
@@ -1341,10 +1335,8 @@ sub _rebless_to_broken
 
 ## use: $self->_normalize_prop_to_db_value( name=>STRING, value=>SCALAR, error=>ORM::Error )
 ##
-## Приводит указанное пользователем (программистом) значение свойства
-## к виду пригодному для хранения в базе данных.
-##
-## Все параметры обязательны.
+## Normalize specified value to be able to store it in database table.
+## All arguments are necessary.
 ##
 sub _normalize_prop_to_db_value
 {
@@ -1441,20 +1433,7 @@ sub _normalize_prop_to_db_value
     return $arg{error}->fatal ? undef : $prop_value;
 }
 
-## use: $self->_validate_prop( prop=>HASH, error=>ORM::Error )
-##
-## Проверяет допустимость значений свойств объекта,
-## и корректирует их автоматически если это возможно.
-##
-## Свойство 'error' - обязательно.
-## свойство 'prop' должно содержать ссылку на хеш, ключами которого
-## являются имена свойств объекта, подлежащих проверке.
-##
-## Этот метод автоматически вызывается методами new и update,
-## и не должен явно вызываться из других мест.
-## При переопределении метода _validate_prop в наследуемых
-## классах обязательно вызывайте из него метод базового
-## класса $self->SUPER::_validate_prop(...).
+## use: $self->_validate_prop( prop=>HASH, method=>string, error=>ORM::Error )
 ##
 sub _validate_prop {}
 
@@ -1748,13 +1727,13 @@ sub _derive
             $derived->{REV_REFS}{ $pclass->{class}.' '.$pclass->{prop} }
                 = [ $pclass->{class}, $pclass->{prop} ];
         }
-        ## Этот кусок кода нужен только для исполнения в среде mod_perl,
-        ## В остальных случаях он не имеет эффекта.
+        ## Following pease of code make sence only in mod_perl environment,
+        ## it is necessary to avoid the following problem:
         ##
-        ## Если Вы написали новый ORM-класс имеющий ссылочные свовйства,
-        ## то классы на которые ссылаются свойства не будут об этом знать,
-        ## т.е. они не переопределят свои _rev_refs если не перезапустить
-        ## httpd. Этот код позволяет избежать проблемы.
+        ## If you have created and loaded new ORM-class My::Class2 that contain
+        ## referencing property to class My::Class1, then My::Class1 does not
+        ## know about new referer and therefore My::Class1->_rev_refs returns
+        ## outdated data.
         ##
         for my $prop ( keys %{$derived->{TABLE_STRUCT}{$table}} )
         {
@@ -1798,8 +1777,8 @@ sub _values_are_not_equal
 }
 
 ##
-## METHODS AND PROPERTIES TO USE VIA CLASS INITIALISATION
-## (ORM->_derive)
+## METHODS AND PROPERTIES TO USE DURING CLASS INITIALISATION
+## ( ORM->_derive )
 ##
 
 sub _class_is_primary         { ! exists $_[1]->_class_info->{TABLE}; }

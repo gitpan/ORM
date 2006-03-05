@@ -98,12 +98,11 @@ sub select_base
 ## Select rows from tables corresponding to base class 'class'
 ## or its descendants matched by 'filter'.
 ##
-## Метод select_full должен самостоятельно проверять
-## наличие объектов в кеше, поэтому $result_set может
-## содержать не только сырые даные для конструирования
-## объектов но и готовые объекты, если они найдены в кеше.
+## This method have to check presence of each object in cache on it's own.
+## If it has found one, then cached object should be returned instead of
+## raw data hash.
 ##
-## Не должен вызываться для sealed классов.
+## Must not be called for sealed classes.
 ##
 sub select_full
 {
@@ -285,7 +284,7 @@ sub ql
 
 ## use: $class->begin_transaction( error=>ORM::Error );
 ##
-## Не должен использоваться явно, используется классом ORM::Ta
+## This method is used by ORM::Ta, must not be used explicitly.
 ##
 sub begin_transaction
 {
@@ -294,7 +293,7 @@ sub begin_transaction
 
 ## use: $class->commit_transaction( error=>ORM::Error );
 ##
-## Не должен использоваться явно, используется классом ORM::Ta
+## This method is used by ORM::Ta, must not be used explicitly.
 ##
 sub commit_transaction
 {
@@ -303,7 +302,7 @@ sub commit_transaction
 
 ## use: $class->rollback_transaction( error=>ORM::Error );
 ##
-## Не должен использоваться явно, используется классом ORM::Ta
+## This method is used by ORM::Ta, must not be used explicitly.
 ##
 sub rollback_transaction
 {

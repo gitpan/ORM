@@ -28,7 +28,11 @@
 
 package ORM::Error;
 
-$VERSION=0.8;
+#use base 'Exception::Class::Base';
+
+$VERSION=0.83;
+
+#ORM::Error->Trace( 1 );
 
 ##
 ## CONSTRUCTORS
@@ -37,9 +41,10 @@ $VERSION=0.8;
 sub new
 {
     my $class = shift;
-    my $self  = {};
+#    my $self  = $class->SUPER::new();
+    my $self  = bless {}, $class;
 
-    return bless $self, $class;
+    return $self;
 }
 
 ##
@@ -139,13 +144,21 @@ sub upto
     my $self = shift;
     my $up   = shift;
 
-    $up && $up->add( error=>$self );
+    if( UNIVERSAL::isa( $up, 'ORM::Error' ) )
+    {
+        $up->add( error=>$self );
+    }
+    elsif( $self->fatal )
+    {
+        # $self->throw;
+    }
 }
 
 ##
 ## OBJECT PROPERTIES
 ##
 
+sub full_message { shift->short_text( @_ ); }
 sub short_text
 {
     my $self = shift;

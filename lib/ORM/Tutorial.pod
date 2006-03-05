@@ -146,9 +146,9 @@ It's time to create database tables.
       `prop`  varchar(45) NOT NULL default '',
       `ref_class` varchar(45) NOT NULL default '',
       PRIMARY KEY  (`class`,`prop`)
-  ) TYPE=InnoDB;
+  ) ENGINE=InnoDB;
   
-  INSERT INTO '_ORM_refs' VALUES ( 'Todo::Task', 'worker', 'Todo::Worker' );
+  INSERT INTO `_ORM_refs` VALUES ( 'Todo::Task', 'worker', 'Todo::Worker' );
   
   DROP TABLE IF EXISTS `todo_list`.`Task`;
   CREATE TABLE `task` (
@@ -160,14 +160,14 @@ It's time to create database tables.
       `deadline` date default NULL,
       `worker` bigint(20) unsigned default NULL,
       PRIMARY KEY  (`id`)
-  ) TYPE=InnoDB;
+  ) ENGINE=InnoDB;
   
   DROP TABLE IF EXISTS `todo_list`.`Worker`;
   CREATE TABLE `worker` (
       `id` bigint(20) unsigned NOT NULL auto_increment,
       `name` varchar(100) NOT NULL default '',
       PRIMARY KEY  (`id`)
-  ) TYPE=InnoDB;
+  ) ENGINE=InnoDB;
 
 We just created 3 tables, first of them C<_ORM_refs> is special table.
 ORM uses it to detect relations between classes in our model and usage
@@ -276,10 +276,12 @@ of our model can acces it.
       print ' 'x($ident*2),('-'x20),"\n";
       for my $prop ( (ref $self)->_all_props )
       {
-          printf "%".(20+$ident*2)."s %s\n", "$prop:", $self->_property_id( $prop );
+          printf "%".(20+$ident*2)."s %s\n", "$prop:",
+              (defined $self->_property_id($prop) ? $self->_property_id($prop) : '*UNDEF*');
+
           if( (ref $self)->_prop_is_ref( $prop ) && $self->_property( $prop ) )
           {
-              push @ref, $self->_property( $prop );
+              push @ref, $prop;
           }
       }
       print ' 'x($ident*2),('-'x20),"\n\n";
@@ -289,7 +291,7 @@ of our model can acces it.
       for my $prop ( @ref )
       {
           print ' 'x(($ident+1)*2),"Related object '$prop':\n";
-          $prop->print( $ident+1 );
+          $self->_property( $prop )->print( $ident+1 );
       }
   }
 
@@ -386,7 +388,7 @@ property when explicit value is not specified:
       my $self = shift;
       my %arg  = @_;
   
-      if( ! $self->id && ! $self->created )
+      if( $arg{method} eq 'new' && ! $self->created )
       {
           $self->_fix_prop
           (
@@ -404,9 +406,9 @@ property when explicit value is not specified:
 is being created (C<new> method) and when object is being updated
 (C<update> method).
 
-=item * Condition C<( !$self-E<gt>id )> means than object is not yet stored in
-database table and therefore doesn't have ID assigned to it.
-In another words this means than condition is true only in C<new> method.
+=item * Condition C<( $arg{method} eq 'new' )> is true only when called from
+within C<new> method. In another words this means that object is not yet
+stored in database table.
 
 =item * Method C<ORM::_fix_prop> is intended to use only within C<_validate_prop>.
 
@@ -713,7 +715,7 @@ For example we should not permit to set C<Todo::Task-E<gt>deadline> property to 
 To implement this functionality we will modify C<Todo::Task> class by adding new condition to
 C<_validate_prop> method:
 
-  if( $self->deadline < ORM::Datetime->current )
+  if( $self->deadline && $self->deadline < ORM::Datetime->current )
   {
       $arg{error}->add_fatal( "Deadline is in past!" );
   }
@@ -1306,7 +1308,9 @@ Meta-expressions are constructed in the same fashion as for C<find>.
 
 After execution of above code $cartman will fall in lazy loaded
 state. More specifically it will have no idea about new value of 
-C<name> property.
+C<name> property (Note also that if history is enabled for method
+or for entire class then the object is being brought to fully loaded
+state to consider history changes).
 
 This feature is useful to do non-transactional updates
 in situations when you are not sure about freshness

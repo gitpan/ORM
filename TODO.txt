@@ -1,4 +1,11 @@
 First queue:
+    - Dual error handling mechanism implemented, now errors can be
+      handled using exceptions
+    - FreeBSD port autogeneration script
+    - HTML docs autogeneration script
+    - Rewrite modules to use exceptions as necessary
+    - Implement auto transaction rollback after exception
+    - Add quotation methods for different types of data
     - Improve ORM::Error, create ORM::Error::Db
     - Implement multifield properties
     - Implement arbitrary/multified object's ID
@@ -13,7 +20,7 @@ First queue:
     - Implement storage drivers:
        - ORM::Db::Backup
        - ORM::Db::Replicated (to work with replicated DB in 'one master many slaves' mode)
-       - ORM::Db::DBI::MySQLemTA (emulate transactions for non-transactional MySQL)
+       - ORM::Db::DBI::MySQLemTa (emulate transactions for non-transactional MySQL)
        - ORM::Db::Merged (to represent many DBs with the same schemes as one solid DB)
     - Add 'preload' argument to 'find' method
     - Temporary objects support:

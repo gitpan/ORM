@@ -28,7 +28,7 @@
 
 package ORM::Db::DBI::MySQL;
 
-$VERSION = 0.8;
+$VERSION = 0.83;
 
 use base 'ORM::Db::DBI';
 
@@ -85,6 +85,36 @@ sub qf { $_[0]->qi( $_[1] ); }
 ## OBJECT METHODS
 ##
 
+sub begin_transaction
+{
+    my $self  = shift;
+    my %arg   = @_;
+
+    $self->{ta} = 1;
+    $self->do( query=>"START TRANSACTION", error=>$arg{error} );
+}
+
+sub commit_transaction
+{
+    my $self  = shift;
+    my %arg   = @_;
+
+    delete $self->{ta};
+    $self->do( query=>"COMMIT", error=>$arg{error} );
+}
+
+sub rollback_transaction
+{
+    my $self  = shift;
+    my %arg   = @_;
+
+    delete $self->{ta};
+    unless( $self->{lost_connection} )
+    {
+        $self->do( query=>"ROLLBACK", error=>$arg{error} );
+    }
+}
+
 sub update_object
 {
     my $self = shift;
@@ -92,37 +122,26 @@ sub update_object
     $self->update_object_part( all_tables=>1, @_ );
 }
 
+## Can be optimized to check consistency
+## right in DELETE statement using JOINS
+##
 sub delete_object
 {
-    my $self = shift;
-    my %arg  = @_;
+    my $self      = shift;
+    my %arg       = @_;
     my $obj       = $arg{object};
     my $obj_class = ref $obj;
-    my $join      = $obj_class->_db_tables_inner_join;
     my $error     = ORM::Error->new;
+    my $ta        = $obj_class->new_transaction( error=>$error );
+    my $join      = $obj_class->_db_tables_inner_join;
     my $rows_affected;
 
-    # Should be optimized!
-    if( $arg{emulate_foreign_keys} )
-    {
-        for my $ref ( $obj_class->_rev_refs )
-        {
-            my $referers = $ref->[0]->count
-            (
-                filter => ( $ref->[0]->M->_prop($ref->[1])==$obj->id ),
-                error  => $error,
-            );
-            if( $referers )
-            {
-                $error->add_fatal
-                (
-                    "Can't delete instance ID#" . $obj->id
-                    . " of '$obj_class', because there're "
-                    . "$referers instances of '$ref->[0]' refer to it."
-                );
-            }
-        }
-    }
+    $self->check_object_referers
+    (
+        object => $obj,
+        error  => $error,
+        check  => $arg{emulate_foreign_keys},
+    );
 
     unless( $error->fatal )
     {
@@ -146,6 +165,16 @@ sub delete_object
                 "Failed to delete ID#".$obj->id." from '"
                 . $obj_class->_db_tables_str
                 . "', $rows_affected rows affected"
+            );
+        }
+
+        unless( $error->fatal )
+        {
+            $self->check_object_referers
+            (
+                object => $obj,
+                error  => $error,
+                check  => $arg{emulate_foreign_keys},
             );
         }
     }

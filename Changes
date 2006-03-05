@@ -1,8 +1,16 @@
 Revision history for Perl extension ORM.
 
-0.84
-    - Dual error handling mechanism implemented, now errors can be
-      handled using exceptions
+0.83.1
+    - use transactions in methods of ORM::Db::DBI: 'insert_object',
+      'update_object', 'delete_object'
+    - Improved foreign keys emulation
+    - Fixed few bugs in PgSQL driver
+    - Added 'method' option to ORM::_validate_prop
+    - Added ORM::_rev alias to ORM::_rev_prop
+    - Added ORM::_rev_count alias to ORM::_rev_prop_count
+    - Added ORM::_prop alias to ORM::_property
+    - Added ORM::_prop_id alias to ORM::_property_id
+    - Updated Existing documentation
 
 0.83
     - ORM::Db::DBI::PgSQL storage driver implemented

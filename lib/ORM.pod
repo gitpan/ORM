@@ -647,8 +647,16 @@ Update object C<$obj> in database.
 =item prop
 
 Hash reference containing new values for properties that should be 
-changed. Values of C<prop> hash can be objects of class C<ORM::Expr>
-to do incremental server-side updates of properties.
+changed.
+
+Values of C<prop> hash can be objects of class C<ORM::Expr>
+to do incremental server-side updates of properties. 
+In this case the object being changed falls in lazy loaded state.
+More specifically it has no idea about new value of the property updated
+this way.
+Note also that if history is enabled for method (see 'history' option below)
+or for entire class then the object is being brought to fully loaded state
+to consider history changes.
 
 =item old_prop
 
@@ -726,6 +734,8 @@ Use:
 
 Return complex property by executing only one SQL-query.
 
+=head2 _prop
+
 =head2 _property
 
 Use:
@@ -742,6 +752,8 @@ Return value of named property.
 'name' or C<$prop_name> is name of the property.
 
 =back
+
+=head2 _prop_id
 
 =head2 _property_id
 
@@ -770,6 +782,8 @@ Return value is:
 
 =back
 
+=head2 _rev
+
 =head2 _rev_prop
 
 Use:
@@ -780,6 +794,8 @@ Return objects of class C<$ref_class> those refer to C<$obj>
 by its property C<$ref_prop>.
 
 C<%args> and return value are the same as for C<find>.
+
+=head2 _rev_count
 
 =head2 _rev_prop_count
 
@@ -921,6 +937,11 @@ property C<$prop_name> is changed:
           print "$prop_name is changed\n";
       }
   }
+
+=item method
+
+Contains name of the method from which the call was initiated.
+Possible values are 'new' and 'update'.
 
 =item error
 

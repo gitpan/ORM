@@ -40,6 +40,7 @@ use base 'ORM::Db::DBI';
 ## (
 ##     host        => string,
 ##     database    => string,
+##     namespace   => string || undef,
 ##     user        => string,
 ##     password    => string,
 ##     pure_perl_driver => boolean,
@@ -51,10 +52,16 @@ sub new
     my %arg   = @_;
     my $self;
 
-    $arg{driver}              = $arg{pure_perl_driver} ? 'PgPP' : 'Pg';
-    $arg{data_source}         = "DBI:Pg:dbname='$arg{database}';host='$arg{host}';port=".($arg{port}||5432);
-    $self                     = $class->SUPER::new( %arg );
+    unless( $arg{pure_perl_driver} )
+    {
+        $arg{data_source} = "DBI:Pg:dbname='$arg{database}';host='$arg{host}';port=".($arg{port}||5432);
+    }
+
+    $arg{driver} = $arg{pure_perl_driver} ? 'PgPP' : 'Pg';
+    $self        = $class->SUPER::new( %arg );
+
     $self->{pure_perl_driver} = $arg{pure_perl_driver};
+    $self->{namespace}        = $arg{namespace} || 'public';
 
     return $self;
 }
@@ -99,37 +106,7 @@ sub qf { $_[0]->qi( $_[1] ); }
 ## OBJECT METHODS
 ##
 
-
-sub begin_transaction
-{
-    my $self  = shift;
-    my %arg   = @_;
-
-    $self->{ta} = 1;
-    $self->do( query=>"BEGIN", error=>$arg{error} );
-}
-
-sub commit_transaction
-{
-    my $self  = shift;
-    my %arg   = @_;
-
-    delete $self->{ta};
-    $self->do( query=>"COMMIT", error=>$arg{error} );
-}
-
-sub rollback_transaction
-{
-    my $self  = shift;
-    my %arg   = @_;
-
-    delete $self->{ta};
-    unless( $self->{lost_connection} )
-    {
-        $self->do( query=>"ROLLBACK", error=>$arg{error} );
-    }
-}
-
+sub _namespace        { $_[0]->{namespace}; }
 sub _pure_perl_driver { $_[0]->{pure_perl_driver}; }
 
 ## use: $id = $db->insertid()
@@ -194,7 +171,7 @@ sub table_struct
     # "SELECT version()" or something else.
 
     my $old_ver = $self->_db_handler->{pg_server_version} < 70300;
-    my $catalog = $old_ver ? 'pg_catalog.' : '';
+    my $catalog = $old_ver ? '' : 'pg_catalog.';
 
     #ORM::DbLog->write_to_stderr(1);
     $res = $self->select
@@ -226,7 +203,7 @@ sub table_struct
                 a.attnum >= 0
                 AND c.relkind IN (\'r\',\'v\')
                 AND c.relname = ' . $self->qc( $arg{table} ) . '
-                '.( $old_ver ? '' : 'AND n.nspname = '.$self->qc( $self->database ) ).'
+                '.( $old_ver ? '' : 'AND n.nspname = '.$self->qc( $self->_namespace ) ).'
             ORDER BY "Index"'
         )
     );
@@ -285,7 +262,8 @@ sub _lost_connection
     my $self = shift;
     my $err  = shift;
 
-    # mysql - defined $err && ( $err == 2006 || $err == 2013 );
+    # mysql: defined $err && ( $err == 2006 || $err == 2013 );
+    warn "Can't verify whether error was caused by connection abort!";
     undef;
 }
 
@@ -294,7 +272,7 @@ sub _parse_default_value
     my $self  = shift;
     my $value = shift;
 
-    if( $value =~ /^'(.*)'::[^:]+$/ )
+    if( defined $value && $value =~ /^'(.*)'::[^:]+$/ )
     {
         $value = $1;
         $value =~ s/''/'/g;

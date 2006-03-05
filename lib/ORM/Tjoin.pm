@@ -26,16 +26,13 @@
 #   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #
 
+# Instance of the class represents tree data structure,
+# describing links between DB tables in joins.
+
 package ORM::Tjoin;
 
 use Carp;
 use ORM::TjoinNull;
-
-##
-## Объект класса представляет собой древовидную структуру
-## данных, описывающую связи между таблицами в базе данных.
-## Узлы структуры соответствуют таблицам базы данных.
-##
 
 $VERSION=0.81;
 
@@ -109,7 +106,7 @@ sub new
 
 sub copy
 {
-    # Should copy:
+    # Must copy:
     #
     # class
     # left_prop

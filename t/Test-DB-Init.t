@@ -14,7 +14,7 @@ $error = ORM::Error->new;
 
 if( Test::ORM->_db->isa( 'ORM::Db::DBI::SQLite' ) )
 {
-    $sql_file = IO::File->new( 't/Test-DB.sql' );
+    $sql_file = IO::File->new( 't/Test-DB.SQLite.sql' );
     $sql_file->read( $sql, 100000 );
 
     @queries = split /;/, $sql;

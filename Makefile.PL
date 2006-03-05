@@ -10,6 +10,7 @@ WriteMakefile
     {
         'DBD::SQLite'              => 1.11,
         'Class::Data::Inheritable' => 0.02,
+        'Exception::Class'         => 1.20,
     },
     (
         $] >= 5.005

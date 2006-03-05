@@ -28,7 +28,7 @@
 
 package ORM::Db::DBI;
 
-$VERSION = 0.8;
+$VERSION = 0.83;
 
 use DBI;
 use base 'ORM::Db';
@@ -357,6 +357,7 @@ sub insert_object
     my $obj_class = ref $obj;
     my $id        = $arg{id};
     my $error     = ORM::Error->new;
+    my $ta        = $obj_class->new_transaction( error=>$error );
 
     # Insert new records into tables
     my @table = $obj_class->_db_tables;
@@ -399,28 +400,6 @@ sub insert_object
             (
                 "Insert into table '$table[$i]' failed, $rows_affected rows affected"
             );
-        }
-    }
-
-    # Roll back if previous loop failed
-    if( $error->fatal && $id )
-    {
-        for( $i=$i-2; $i>=0; $i-- )
-        {
-            my $rows_affected = $self->delete_by_id
-            (
-                table => $table[$i],
-                id    => $id,
-                error => $error,
-            );
-            if( $rows_affected != 1 )
-            {
-                $error->add_fatal
-                (
-                    "Failed to delete row with id#$id from '$table[$i]' during rollback, "
-                    . "$rows_affected rows affected"
-                );
-            }
         }
     }
 
@@ -555,26 +534,12 @@ sub delete_object
     my @table     = $obj_class->_db_tables;
     my $rows_affected;
 
-    if( $arg{emulate_foreign_keys} )
-    {
-        for my $ref ( $obj_class->_rev_refs )
-        {
-            my $referers = $ref->[0]->count
-            (
-                filter => ( $ref->[0]->M->_prop($ref->[1])==$obj->id ),
-                error  => $error,
-            );
-            if( $referers )
-            {
-                $error->add_fatal
-                (
-                    "Can't delete instance ID#" . $obj->id
-                    . " of '$obj_class', because there're "
-                    . "$referers instances of '$ref->[0]' refer to it."
-                );
-            }
-        }
-    }
+    $self->check_object_referers
+    (
+        object => $obj,
+        error  => $error,
+        check  => $arg{emulate_foreign_keys},
+    );
 
     unless( $error->fatal )
     {
@@ -590,6 +555,17 @@ sub delete_object
             {
                 $error->add_fatal( "Failed to delete row with id#$id from '$table[$i]' during object delete" );
             }
+        }
+
+        # must check twise, new referers could be created during deletion
+        unless( $error->fatal )
+        {
+            $self->check_object_referers
+            (
+                object => $obj,
+                error  => $error,
+                check  => $arg{emulate_foreign_keys},
+            );
         }
     }
 
@@ -641,30 +617,45 @@ sub begin_transaction
 {
     my $self  = shift;
     my %arg   = @_;
+    my $error = ORM::Error->new;
 
     $self->{ta} = 1;
-    $self->do( query=>"START TRANSACTION", error=>$arg{error} );
+    $self->_db_handler->begin_work();
+    $error->add_fatal( $self->_db_handler->errstr ) if( $self->_db_handler->err );
+    ORM::DbLog->new( sql=>"BEGIN", error=>$error->text );
+
+    $error->upto( $arg{error} );
 }
 
 sub commit_transaction
 {
     my $self  = shift;
     my %arg   = @_;
+    my $error = ORM::Error->new;
 
     delete $self->{ta};
-    $self->do( query=>"COMMIT", error=>$arg{error} );
+    $self->_db_handler->commit();
+    $error->add_fatal( $self->_db_handler->errstr ) if( $self->_db_handler->err );
+    ORM::DbLog->new( sql=>"COMMIT", error=>$error->text );
+
+    $error->upto( $arg{error} );
 }
 
 sub rollback_transaction
 {
     my $self  = shift;
     my %arg   = @_;
+    my $error = ORM::Error->new;
 
     delete $self->{ta};
     unless( $self->{lost_connection} )
     {
-        $self->do( query=>"ROLLBACK", error=>$arg{error} );
+        $self->_db_handler->rollback();
+        $error->add_fatal( $self->_db_handler->errstr ) if( $self->_db_handler->err );
+        ORM::DbLog->new( sql=>"ROLLBACK", error=>$error->text );
     }
+
+    $error->upto( $arg{error} );
 }
 
 ##
@@ -797,7 +788,7 @@ sub select
             $error->add_fatal( "Failed to execute query, 'prepare' returned undef, query='$query'" );
         }
 
-        if( $self->_lost_connection( $st && $st->err ) )
+        if( $st && $st->err && $self->_lost_connection( $st->err ) )
         {
             $self->_db_reconnect;
             $retry = $tries--;
@@ -875,6 +866,37 @@ sub _sql_limit
     }
 
     return $sql;
+}
+
+sub check_object_referers
+{
+    my $self      = shift;
+    my %arg       = @_;
+    my $obj       = $arg{object};
+    my $obj_class = ref $obj;
+    
+    if( $arg{check} )
+    {
+        for my $ref ( $obj_class->_rev_refs )
+        {
+            my $referers = $ref->[0]->count
+            (
+                filter => ( $ref->[0]->M->_prop($ref->[1])==$obj->id ),
+                error  => $arg{error},
+            );
+            if( $referers )
+            {
+                $arg{error}->add_fatal
+                (
+                    "Can't delete instance ID#" . $obj->id
+                    . " of '$obj_class', because there're "
+                    . "$referers instances of '$ref->[0]' refer to it."
+                );
+            }
+        }
+    }
+
+    return undef;
 }
 
 ##

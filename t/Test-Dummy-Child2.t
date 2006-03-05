@@ -27,6 +27,4 @@ $stat = Test::Dummy::Child2->stat
 
 ok( !$e->fatal && $stat->[0]{ref} && $stat->[0]{ref}->id == 415 && $stat->[0]{self}->a eq 'aa', 'stat' );
 
-print $stat->[0]->{self}->a,"\n";
-
 print $e->text;

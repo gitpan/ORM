@@ -76,21 +76,19 @@ sub new
 ## )
 ##
 ## prop_class:
-##  Класс, свойство которого имеется ввиду.
+##  The class that 'prop' property belongs to.
 ##
 ## prop:
 ## 
-##  prop              =~ ( '->' ПРЯМОЕ_СВОЙСТВО | '-<' ОБРАТНОЕ_СВОЙСТВО )+
-##  ОБРАТНОЕ_СВОЙСТВО =~ ССЫЛАЮЩИЙСЯ_КЛАСС '.' СВОЙСТВО_КЛАССА '.' АЛЬЯС
+##  prop              =~ ( '->' DIRECT_PROPERTY | '-<' REVERSE_PROPERTY )+
+##  REVERSE_PROPERTY  =~ REFERRING_CLASS '.' CLASS_PROPERTY '.' ALIAS
 ## 
-##  ПРЯМОЕ_СВОЙСТВО   - свойство класса хранящееся в БД
-##  ОБРАТНОЕ_СВОЙСТВО - свойство другого класса, ссылающееся на целевой
-##  ССЫЛАЮЩИЙСЯ_КЛАСС - класс, ссылающийся на целевой класс одним из своих
-##                      свойств
-##  СВОЙСТВО_КЛАССА   - свойство ссылающегося класса хранящееся в БД
-##  АЛЬЯС             - символьно-цифровая строка, позволяет использовать в
-##                      выражении разные объекты одного и того же ссылающегося
-##                      класса
+##  DIRECT_PROPERTY   - property of the target class
+##  REVERSE_PROPERTY  - property of third class that refers to target class
+##  REFERRING_CLASS   - class that refers to target class by one of its properties
+##  CLASS_PROPERTY    - property name of the instance of the referring class
+##  ALIAS             - alpha-numeric string, aliasing allows to use different 
+##                      referring objects of the same type
 ##
 sub _new
 {
@@ -135,11 +133,11 @@ sub _new
 ## )
 ##
 ## class:
-##  Класс, свойство которого имеется ввиду.
+##  The class that 'prop' property belongs to.
 ##
 ## prop:
-##  Непосредственно свойство класса
-##  Если свойство не определено, то подразумевается id
+##  Direct property of the class.
+##  If this argument is omitted then 'id' is assumed.
 ##
 sub _new_flat
 {
@@ -271,10 +269,9 @@ sub _sql_str
 ## METHODS
 ##
 
-## use: $node->_expand( STRING );
+## use: $metaprop->_expand( STRING );
 ##
-## Вычисляет свойство prop текущего метасвойства,
-## после чего текущее метасвойство заменяется вычисленным.
+## Extends $metaprop meta-property to be 'prop' meta-property of $metaprop.
 ##
 sub _expand
 {
@@ -407,13 +404,12 @@ sub _arb_expand
 
 ## use: @prop = $prop->_parse_prop_str( str=>STRING );
 ##
-## Каждый элемент результирующего массива является хешем,
-## содержащим следующие записи:
+## Each element of resulting array is hash, containing fields:
 ##
-##   type:  '>' - прямое или '<' - обратное свойство
-##   name:  имя свойства
-##   class: (только для обратного свойства) ссылающийся класс
-##   alias: (только для обратного свойства) альяс
+##   type:  '>' - direct or '<' - reverse property
+##   name:  name of the property
+##   class: (only makes sence for reverse properties) referring class
+##   alias: (only makes sence for reverse properties) alias
 ##
 sub _parse_prop_str
 {

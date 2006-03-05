@@ -7,6 +7,7 @@ installdirs:  site
 requires:
     Class::Data::Inheritable:      0.02
     DBD::SQLite:                   1.11
+    Exception::Class:              1.2
 
 distribution_type: module
 generated_by: ExtUtils::MakeMaker version 6.17
