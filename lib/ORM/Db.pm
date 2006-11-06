@@ -118,6 +118,7 @@ sub select_full
 ##
 ## Select joined rows from tables 'tables' with id='id'.
 ## 'id' can be string of format 'id1,id2,id3,...'.
+## Caller should make sure that 'id' string is quoted properly.
 ##
 sub select_tables
 {

@@ -156,7 +156,7 @@ that value for this argument can be undefined.
 Every constructor, method or property that accepts 'error' argument implies
 it to be object of class C<ORM::Error> or undef. 
 After call is completed this object contains all errors occured during method
-execution. When 'error' argument is undef or not specified all errors are silently
+execution. When 'error' argument is undef or not specified, all errors are silently
 ignored. In future releases ommitted 'error' argument will be the reason 
 to throw exception in case of error. Cases when 'error' is processed in different
 way are documented particularly.
@@ -258,6 +258,14 @@ C<ORM::Order> constructor like this:
 If 'lazy_load' specified then only data from tables corresponding to base class
 C<$class> will be loaded initially.
 
+For example suppose you have class A (table 'A') and class B descendant
+of A (tables 'A','B'), and there are instances of both classes. When you call
+A->find( lazy_load=>0 ), then ORM loads data by two queries, first is for select
+required rows from table 'A', second is for select rows from 'B' with proprietary
+data of instances of B. When you call A->find( lazy_load=>1 ), then ORM uses
+only first query, and therefore all instances of B are lazy-loaded (miss data
+from table 'B').
+
 =item page
 
 If C<pagesize> is specified then result set is divided to pages
@@ -352,6 +360,104 @@ create it.
 If there is more than one object with that properties
 then error message returned and return value is undef.
 
+=head2 stat
+
+Use:
+
+  $class->stat
+  (
+      data        => { alias=>ORM::Expr, ... },
+      preload     => { alias=>boolean, ... } || undef,
+      filter      => ORM::Expr || undef,
+      group_by    => [ ORM::Ident|ORM::Metaprop, ... ] || undef,
+      post_filter => ORM::Expr || undef,
+      order       => ORM::Order || undef,
+      lazy_load   => boolean,
+      page        => integer || undef,
+      pagesize    => integer || undef,
+      count       => boolean,
+      error       => ORM::Error,
+      return_res  => boolean,
+  )
+
+Return custom information about objects of the C<$class> and related objects.
+You can find some exmples of C<stat> usage in L<ORM::Tutorial>.
+
+=over
+
+=item data
+
+Defines the data to be fetched. Data is set of properties 
+of objects of C<$class> and related classes.
+
+Each key of 'data' option is alias for property to be fetched,
+each value is meta-expression that correspond to the property.
+
+=item preload
+
+By default every property specified in 'data' that is an ORM-object
+is fetched as its ID and then depending on 'lazy_load' option constructed
+using C<find_id> as fully-loaded object (with separate SQL-query for each object)
+or as lazy-loaded (without any SQL-query).
+
+You can use 'preload' option to force load of objects in single SQL-query.
+To do so just add record to 'preload' hash where key is an alias from 'data'
+hash and value is true perl expression.
+
+You can examine how exactly it works using C<ORM::DbLog>.
+
+=item filter
+
+Specifies condition that fetched data should satisfy to.
+This is analogue to SQL 'WHERE' clause.
+
+=item group_by
+
+This is analogue to SQL 'GROUP BY' clause.
+
+=item post_filter
+
+This is analogue to SQL 'HAVING' clause.
+
+=item order
+
+Specifies the way that fetched data should be ordered in (see L<ORM::Order>).
+If this option is an array reference then it is passed to 
+C<ORM::Order> constructor like this:
+
+  $order = ORM::Order->new( @$order );
+
+=item lazy_load
+
+Fetched objects are initialized by C<find_id>.
+Value of 'lazy_load' option to C<stat> is passed to C<find_id> directly.
+
+=item page
+
+If C<pagesize> is specified then result set is divided to pages
+with 'pagesize' items per page and page numbered 'page' is returned.
+Pages are numbered starting with 1. If C<pagesize> is specified and
+C<page> is omitted then page number is implied to be 1.
+
+=item pagesize
+
+Size of the page to be returned.
+
+=item count
+
+If 'count' is set to true then result of the call is
+amount of resulting rows. Also options 'page' and
+'pagesize' have no sence together with 'count'.
+
+=item return_res
+
+If C<return_res> option is true then return value is an iterator
+which is object of class C<ORM::ResultSet>, found objects can be
+accesed one by one via $result->next. It is useful to retrieve large
+amount of objects.
+
+=back
+
 =head1 CLASS METHODS
 
 =head2 count
@@ -386,6 +492,12 @@ Use:
 Begins transaction.
 Transaction commits when object $ta is destroyed.
 C<$class> is B<initial class>.
+
+Note that transactions are assigned to the initial class.
+If C<$class> is not an initial class then created transaction
+is assigned to the initial class of the C<$class>.
+If C<$class> is an instance of some class, then transaction
+is assigned to the initial class of the instance's class.
 
 =head2 base_class
 
@@ -529,104 +641,6 @@ Return true if class C<$ref_class> has property C<$ref_prop>
 that is of type C<$class>.
 
 =head1 OBJECT METHODS
-
-=head2 stat
-
-Use:
-
-  $class->stat
-  (
-      data        => { alias=>ORM::Expr, ... },
-      preload     => { alias=>boolean, ... } || undef,
-      filter      => ORM::Expr || undef,
-      group_by    => [ ORM::Ident|ORM::Metaprop, ... ] || undef,
-      post_filter => ORM::Expr || undef,
-      order       => ORM::Order || undef,
-      lazy_load   => boolean,
-      page        => integer || undef,
-      pagesize    => integer || undef,
-      count       => boolean,
-      error       => ORM::Error,
-      return_res  => boolean,
-  )
-
-Return custom information about objects of the C<$class> and related objects.
-You can find some exmples of C<stat> usage in L<ORM::Tutorial>.
-
-=over
-
-=item data
-
-Defines the data to be fetched. Data is set of properties 
-of objects of C<$class> and related classes.
-
-Each key of 'data' option is alias for property to be fetched,
-each value is meta-expression that correspond to the property.
-
-=item preload
-
-By default every property specified in 'data' that is an ORM-object
-is fetched as its ID and then depending on 'lazy_load' option constructed
-using C<find_id> as fully-loaded object (with separate SQL-query for each object)
-or as lazy-loaded (without any SQL-query).
-
-You can use 'preload' option to force load of objects in single SQL-query.
-To do so just add record to 'preload' hash where key is an alias from 'data'
-hash and value is true perl expression.
-
-You can examine how exactly it works using C<ORM::DbLog>.
-
-=item filter
-
-Specifies condition that fetched data should satisfy to.
-This is analogue to SQL 'WHERE' clause.
-
-=item group_by
-
-This is analogue to SQL 'GROUP BY' clause.
-
-=item post_filter
-
-This is analogue to SQL 'HAVING' clause.
-
-=item order
-
-Specifies the way that fetched data should be ordered in (see L<ORM::Order>).
-If this option is an array reference then it is passed to 
-C<ORM::Order> constructor like this:
-
-  $order = ORM::Order->new( @$order );
-
-=item lazy_load
-
-Fetched objects are initialized by C<find_id>.
-Value of 'lazy_load' option to C<stat> is passed to C<find_id> directly.
-
-=item page
-
-If C<pagesize> is specified then result set is divided to pages
-with 'pagesize' items per page and page numbered 'page' is returned.
-Pages are numbered starting with 1. If C<pagesize> is specified and
-C<page> is omitted then page number is implied to be 1.
-
-=item pagesize
-
-Size of the page to be returned.
-
-=item count
-
-If 'count' is set to true then result of the call is
-amount of resulting rows. Also options 'page' and
-'pagesize' have no sence together with 'count'.
-
-=item return_res
-
-If C<return_res> option is true then return value is an iterator
-which is object of class C<ORM::ResultSet>, found objects can be
-accesed one by one via $result->next. It is useful to retrieve large
-amount of objects.
-
-=back
 
 =head2 update
 
@@ -808,13 +822,12 @@ Use:
 Autoload makes automatic acessors and mutators available
 for database stored properties of the same name.
 
-When 'new_value' is not specified then the method just
-calls C<_property> method with appropriate arguments and
-returns value of the property.
+When 'new_value' is not specified then C<_property> method 
+is called with appropriate arguments and returns the value of the property.
 
-If 'new_value' is specified, then the method behaves like mutator
-and updates corresponding property by specified value and returned
-value is undef.
+If 'new_value' is specified, then the method behaves like mutator,
+it means that the value of the property will be updated with new value
+specified. Return value is undef.
 
 =head1 PROTECTED METHODS
 
@@ -897,8 +910,8 @@ This method is subject to user's redefinition.
 Define automatic detection of property class based on 
 database field name and type.
 
-Default is to assign C<ORM::Date>, C<ORM::Datetime> classes to properties
-of type DATE, DATETIME correspondingly.
+Default is to assign C<ORM::Date> class to fields of type DATE,
+and C<ORM::Datetime> class to fields of type DATETIME and TIMESTAMP.
 
 =head2 _validate_prop
 

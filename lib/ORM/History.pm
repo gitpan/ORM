@@ -158,6 +158,19 @@ sub new
 ## PROPERTIES
 ##
 
+sub obj
+{
+    my $self = shift;
+
+    unless( $self->{obj} )
+    {
+        $self->_load_ORM_class( $self->obj_class );
+        $self->{obj} = $self->obj_class->find_id( id=>$self->obj_id );
+    }
+
+    return $self->{obj};
+}
+
 sub master { ! $_[0]->slaved_by; }
 
 ##

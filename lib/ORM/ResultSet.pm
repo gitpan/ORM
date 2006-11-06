@@ -50,6 +50,8 @@ sub new
 ## PROPERTIES
 ##
 
+sub class { $_[0]->{class}; }
+
 sub next
 {
     my $self = shift;

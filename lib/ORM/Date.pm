@@ -34,14 +34,14 @@ use Carp;
 use POSIX;
 use ORM::Datetime;
 use overload
-        '>'   => sub { $_[0]->epoch >   $_[1]->epoch; },
-        '<'   => sub { $_[0]->epoch <   $_[1]->epoch; },
-        '>='  => sub { $_[0]->epoch >=  $_[1]->epoch; },
-        '<='  => sub { $_[0]->epoch <=  $_[1]->epoch; },
-        '=='  => sub { $_[0]->epoch ==  $_[1]->epoch; },
-        '!='  => sub { $_[0]->epoch !=  $_[1]->epoch; },
-        '<=>' => sub { $_[0]->epoch <=> $_[1]->epoch; },
-        'cmp' => sub { $_[0]->epoch cmp $_[1]->epoch; },
+        '>'   => sub { ( my $err = _check_args( @_ ) ); $err && croak $err; $_[0]->epoch >   $_[1]->epoch; },
+        '<'   => sub { ( my $err = _check_args( @_ ) ); $err && croak $err; $_[0]->epoch <   $_[1]->epoch; },
+        '>='  => sub { ( my $err = _check_args( @_ ) ); $err && croak $err; $_[0]->epoch >=  $_[1]->epoch; },
+        '<='  => sub { ( my $err = _check_args( @_ ) ); $err && croak $err; $_[0]->epoch <=  $_[1]->epoch; },
+        '=='  => sub { ( my $err = _check_args( @_ ) ); $err && croak $err; $_[0]->epoch ==  $_[1]->epoch; },
+        '!='  => sub { ( my $err = _check_args( @_ ) ); $err && croak $err; $_[0]->epoch !=  $_[1]->epoch; },
+        '<=>' => sub { ( my $err = _check_args( @_ ) ); $err && croak $err; $_[0]->epoch <=> $_[1]->epoch; },
+        'cmp' => sub { ( my $err = _check_args( @_ ) ); $err && croak $err; $_[0]->epoch cmp $_[1]->epoch; },
         'fallback' => 1;
 
 my $use_local_tz = 1;
@@ -73,6 +73,11 @@ sub new
         $array->[0]-1900,
         0,0,-1
     );
+
+    unless( defined $time )
+    {
+        croak "Specified time [".join( ',',@$array )."] cannot be represented";
+    }
 
     $class->new_epoch( $time );
 }
@@ -229,6 +234,23 @@ sub _tz_time_str
     my $time  = shift;
 
     return $use_local_tz ? localtime $time : gmtime $time;
+}
+
+sub _check_args
+{
+    my @arg = $_[2] ? ( $_[1], $_[0] ) : @_;
+    my $err = undef;
+
+    if( ! UNIVERSAL::isa( $arg[0], 'ORM::Date' ) )
+    {
+        $err = "First arg must be an 'ORM::Date' instance.";
+    }
+    elsif( ! UNIVERSAL::isa( $arg[1], 'ORM::Date' ) )
+    {
+        $err = "Second arg must be an 'ORM::Date' instance.";
+    }
+
+    $err;
 }
 
 1;

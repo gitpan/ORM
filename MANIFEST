@@ -32,6 +32,7 @@ lib/ORM/Filter/Group.pm
 lib/ORM/Filter/Interval.pm
 lib/ORM/History.pm
 lib/ORM/Ident.pm
+lib/ORM/Meta/Array.pm
 lib/ORM/Meta/ORM/Date.pm
 lib/ORM/Meta/ORM/Datetime.pm
 lib/ORM/Meta/ORM/History.pm

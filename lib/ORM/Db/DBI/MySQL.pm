@@ -40,9 +40,14 @@ sub new
 {
     my $class = shift;
     my %arg   = @_;
+    my $self;
 
     $arg{driver} = 'mysql';
-    $class->SUPER::new( %arg );
+    $self = $class->SUPER::new( %arg );
+
+    $self->{allow_nontransactional_tables} = $arg{allow_nontransactional_tables};
+
+    return $self;
 }
 
 ##
@@ -57,6 +62,9 @@ sub qc
     if( defined $str )
     {
         $str =~ s/\'/\'\'/g;
+        $str =~ s/\\/\\\\/g;
+        $str =~ s/\n/\\n/g;
+        $str =~ s/\r/\\r/g;
         $str = "'$str'";
     }
     else
@@ -223,7 +231,7 @@ sub table_struct
         {
             $error->add_fatal( 'Can\'t detect engine for "'.$arg{table}.'"' );
         }
-        elsif( $engine ne 'InnoDB' && $engine ne 'BDB' )
+        elsif( !$self->{allow_nontransactional_tables} && $engine ne 'InnoDB' && $engine ne 'BDB' )
         {
             $error->add_fatal
             (

@@ -935,6 +935,16 @@ All three variables contain the same object.
 
 Perl-object caching works even when cache size is set to 0.
 
+Note: Perl-object caching is performed by means of C<weaken>
+(see L<Scalar::Util>). Perl-object caching is significantly restricted
+for the versions of Perl that doesn't support C<weaken> feature.
+The restrictions are: with cache size set to 0 Perl-object caching
+doesn't work at all; with cache size set to non-zero value this
+kind of caching works only for objects those are still in cache's pool queue.
+Once object is deleted from cache queue, the consequent requests to load the
+object from the cache will result in 'not cached' responce, even if there are
+instances of the same object still present in the memory.
+
 =head2 Properties caching
 
 When you first access some object-property of ORM-object, then
@@ -945,7 +955,7 @@ and then store it in internal object's hash.
 When you access the same object-property later it is not
 created again but fetched from hash.
 
-When you need to refresh object's contents simply call C<$task-E<gt>refresh>.
+When you need to refresh object's contents simply call C<$object-E<gt>refresh>.
 
 =head1 TRANSACTIONS
 
@@ -1143,7 +1153,6 @@ C<Todo::Worker::GroupMember> class is nothing else but plain ORM-class:
 
 We should execute some SQL queries:
 
-  DROP TABLE IF EXISTS `todo_list`.`worker_groupmember`;
   CREATE TABLE `Worker_GroupMember` (
     `id` bigint(20) unsigned NOT NULL auto_increment,
     `group` bigint(20) unsigned NOT NULL default '0',

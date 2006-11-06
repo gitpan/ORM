@@ -31,6 +31,7 @@ package ORM::Filter;
 $VERSION=0.8;
 
 use ORM;
+use overload 'fallback' => 1;
 use base 'ORM::Expr';
 
 ##

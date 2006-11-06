@@ -31,6 +31,7 @@ package ORM::Datetime;
 $VERSION = 0.8;
 
 use base 'ORM::Date';
+use overload 'fallback'=>1;
 
 sub current    { shift->new_epoch( time ); }
 sub earlier24h { shift->new_epoch( time-24*60*60 ); }

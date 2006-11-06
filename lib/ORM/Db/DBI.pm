@@ -770,7 +770,7 @@ sub select
 
         $st                = $self->{db}->prepare( $query );
         $h_error           = ORM::Error->new;
-        $st && 
+        $st && ( $DBI::VERSION >= 1.21 ) &&
         (
             $st->{HandleError} = sub
             {

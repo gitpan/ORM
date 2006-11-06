@@ -31,6 +31,7 @@ package ORM::Filter::Group;
 $VERSION=0.8;
 
 use Carp;
+use overload 'fallback' => 1;
 use base 'ORM::Filter';
 
 ##

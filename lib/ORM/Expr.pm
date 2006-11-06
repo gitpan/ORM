@@ -41,15 +41,15 @@ use overload
     '<='  => sub { ORM::Filter::Cmp->new( '<=', _re_args( @_ ) ); },
     '>'   => sub { ORM::Filter::Cmp->new( '>',  _re_args( @_ ) ); },
     '>='  => sub { ORM::Filter::Cmp->new( '>=', _re_args( @_ ) ); },
-    '=='  => sub { ORM::Filter::Cmp->new( '=',  _re_args( @_ ) ); },
-    '!='  => sub { ORM::Filter::Cmp->new( '!=', _re_args( @_ ) ); },
+    '=='  => \&_overloaded_eq,
+    '!='  => \&_overloaded_ne,
 
     'lt'  => sub { ORM::Filter::Cmp->new( '<',  _re_args( @_ ) ); },
     'le'  => sub { ORM::Filter::Cmp->new( '<=', _re_args( @_ ) ); },
     'gt'  => sub { ORM::Filter::Cmp->new( '>',  _re_args( @_ ) ); },
     'ge'  => sub { ORM::Filter::Cmp->new( '>=', _re_args( @_ ) ); },
-    'eq'  => sub { ORM::Filter::Cmp->new( '=',  _re_args( @_ ) ); },
-    'ne'  => sub { ORM::Filter::Cmp->new( '!=', _re_args( @_ ) ); },
+    'eq'  => \&_overloaded_eq,
+    'ne'  => \&_overloaded_ne,
 
     '/'   => sub { ORM::Filter::Cmp->new( '/',  _re_args( @_ ) ); },
     '*'   => sub { ORM::Filter::Cmp->new( '*',  _re_args( @_ ) ); },
@@ -73,6 +73,30 @@ sub _gt  { ORM::Filter::Cmp->new( '>',  _autoshift( @_ ) ); }
 sub _ge  { ORM::Filter::Cmp->new( '>=', _autoshift( @_ ) ); }
 sub _eq  { ORM::Filter::Cmp->new( '=',  _autoshift( @_ ) ); }
 sub _ne  { ORM::Filter::Cmp->new( '!=', _autoshift( @_ ) ); }
+
+sub _overloaded_eq
+{
+    if( defined $_[1] )
+    {
+        ORM::Filter::Cmp->new( '=',  _re_args( @_ ) );
+    }
+    else
+    {
+        $_[0]->_is_undef;
+    }
+}
+
+sub _overloaded_ne
+{
+    if( defined $_[1] )
+    {
+        ORM::Filter::Cmp->new( '!=',  _re_args( @_ ) );
+    }
+    else
+    {
+        $_[0]->_is_defined;
+    }
+}
 
 sub _div { ORM::Filter::Cmp->new( '/',  _autoshift( @_ ) ); }
 sub _mul { ORM::Filter::Cmp->new( '*',  _autoshift( @_ ) ); }

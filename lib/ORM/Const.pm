@@ -34,8 +34,10 @@ $VERSION = 0.8;
 
 sub new
 {
-    my $class = shift;
-    my $self  = { value=>shift };
+    my $class  = shift;
+    my $value  = shift;
+    my $nclass = shift;
+    my $self   = { value=>$value, tjoin=>ORM::Tjoin->new( null_class=>$nclass ) };
 
     return bless $self, $class;
 }
@@ -56,7 +58,7 @@ sub _sql_str
     $self->{int} ? $self->{value} : $arg{tjoin}->class->ORM::qc( $self->{value} );
 }
 
-sub value { $_[0]->{value}; }
-sub _tjoin { ORM::Tjoin->new; }
+sub value  { $_[0]->{value}; }
+sub _tjoin { $_[0]->{tjoin}; }
 
 1;

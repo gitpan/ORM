@@ -26,52 +26,42 @@
 #   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #
 
-package ORM::Filter::Interval;
+package ORM::Meta::Array;
 
-$VERSION=0.8;
+$VERSION=0.83;
+use base 'ORM::Metaprop';
 
-use overload 'fallback' => 1;
-use base 'ORM::Filter';
+package Array;
 
-##
-## CONSTRUCTORS
-##
+use Data::Dumper;
 
-sub new
-{
-    my $class = shift;
-    my $self  = { interval => (shift @_), arg => (shift @_) };
-
-    if( ref $self->{arg} )
-    {
-        unless( UNIVERSAL::isa( $self->{arg}, 'ORM::Expr' ) )
-        {
-            $self->{arg} = $self->{arg}->__ORM_db_value;
-        }
-    }
-
-    return bless $self, $class;
-}
-
-##
-## PROPERTIES
-##
-
-sub _sql_str
-{
-    my $self = shift;
-    my %arg  = @_;
-    my $sql;
-
-    return 'INTERVAL '.$self->scalar2sql( $self->{arg}, $arg{tjoin} ).' '.$self->{interval};
-}
-
-sub _tjoin
+sub __ORM_db_value
 {
     my $self  = shift;
-    my $tjoin = ORM::Tjoin->new;
+    my @array = $self->get;
 
-    $tjoin->merge( $self->{arg}->_tjoin ) if( ref $self->{arg} );
+    Dumper( \@array );
+}
 
-    return $tjoin;
+sub __ORM_new_db_value
+{
+    my $class = shift;
+    my %arg   = @_;
+    my $self;
+    my $VAR1;
+
+    # Automatically convert ARRAY to Array
+    if( ref $arg{value} eq 'ARRAY' )
+    {
+        $self = Array->new( array=>$arg{value} );
+    }
+    # Construct Array from Data::Dumper value
+    else
+    {
+        eval $arg{value};
+        die $@ if( $@ );
+        $self = Array->new( array=>$VAR1 );
+    }
+
+    return $self;
 }

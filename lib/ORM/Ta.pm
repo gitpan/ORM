@@ -31,6 +31,7 @@ package ORM::Ta;
 $VERSION = 0.8;
 
 my $die;
+my $die_eval;
 my $die_handler_enabled;
 my $old_die_handler;
 
@@ -38,12 +39,15 @@ sub new
 {
     my $class = shift;
     my %arg   = @_;
-    my $self  = {};
+    my $self  = bless {}, $class;
 
-    if( $arg{db} )
+    unless( $arg{class}->_current_transaction )
     {
-        $self->{db}    = $arg{db};
+        $die = undef;
+        
+        $self->{class} = $arg{class};
         $self->{error} = $arg{error} || ORM::Error->new;
+        $self->{eval}  = $^S;
 
         unless( $die_handler_enabled )
         {
@@ -55,7 +59,8 @@ sub new
         unless( $self->{error}->fatal )
         {
             my $error = ORM::Error->new;
-            $self->{db}->begin_transaction( error=>$error );
+            $self->{class}->_db->begin_transaction( error=>$error );
+            $self->{class}->_current_transaction( 1 );
             if( $error->fatal )
             {
                 $self->{error}->add( error=>$error );
@@ -64,40 +69,40 @@ sub new
         }
     }
 
-    return bless $self, $class;
+    return $self;
 }
 
 sub DESTROY
 {
     my $self = shift;
 
-    if( $self->{not_started} || !$self->{db} )
+    $self->{class} && $self->{class}->_current_transaction( undef );
+
+    if( $self->{not_started} || !$self->{class} )
     {
         # nothing to do
     }
-    elsif( $die )
+    elsif( $die && $die_eval eq $self->{eval} )
     {
         $die = undef;
-        $self->{error}->add_fatal( "Transaction rolled back because of 'die' exception" );
-        $self->{db}->rollback_transaction( error=>$self->{error} );
+        $self->{error}->add_fatal( "Transaction rolled back because of thrown exception" );
+        $self->{class}->_db->rollback_transaction( error=>$self->{error} );
     }
     elsif( $self->{error}->fatal )
     {
-        $self->{db}->rollback_transaction( error=>$self->{error} );
+        $self->{class}->_db->rollback_transaction( error=>$self->{error} );
     }
     else
     {
-        $self->{db}->commit_transaction( error=>$self->{error} );
+        $self->{class}->_db->commit_transaction( error=>$self->{error} );
     }
 }
 
 sub die_handler
 {
-    unless( $^S )
-    {
-        $die = 1;
-        $old_die_handler && &{$old_die_handler}( @_ );
-    }
+    $die      = 1;
+    $die_eval = $^S;
+    $old_die_handler && &{$old_die_handler}( @_ );
 }
 
 1;

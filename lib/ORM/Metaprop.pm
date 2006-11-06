@@ -103,7 +103,7 @@ sub _new
         $self = $class->_new_flat( class=>$arg{prop_class}, prop=>$prop[0]{name} );
     }
 
-    if( $self )
+    if( defined $self )
     {
         for( my $i=1; $i<@prop; $i++ )
         {

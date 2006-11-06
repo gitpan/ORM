@@ -156,11 +156,13 @@ sub table_struct
         {
             if( $row =~ /^\s*([^\s]+)\s+([^\s]+)(.*?\s+default (NULL|\'[^\']*\'))?/i )
             {
+            	last if $1 =~ /PRIMARY|UNIQUE|CHECK/;
                 my $name = $1;
                 my $type = $2;
                 my $def  = $4;
 
                 $name = $1 if( $name =~ /^\[(.+)\]$/ );
+                $name = $2 if( $name =~ /^(['"])(.+)\1$/ );
 
                 if( ! defined $def )
                 {

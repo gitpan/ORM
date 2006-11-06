@@ -122,7 +122,7 @@ sub insertid
     }
     elsif( $self->_pure_perl_driver )
     {
-        $id = _PgPP_last_insert_id
+        $id = $self->_PgPP_last_insert_id
         (
             $self->_db_handler,
             $self->database,
@@ -167,10 +167,11 @@ sub table_struct
     ## Fetch table structure
 
     # WARNING! DBD::PgPP driver does not support the following
-    # so version detection should be rewriten to use
+    # so version detection probably should be rewriten to use
     # "SELECT version()" or something else.
 
-    my $old_ver = $self->_db_handler->{pg_server_version} < 70300;
+    my $version = $self->_db_handler->{pg_server_version} || 0;
+    my $old_ver = $version < 70300;
     my $catalog = $old_ver ? '' : 'pg_catalog.';
 
     #ORM::DbLog->write_to_stderr(1);
@@ -263,9 +264,12 @@ sub _lost_connection
     my $err  = shift;
 
     # mysql: defined $err && ( $err == 2006 || $err == 2013 );
-    warn "Can't verify whether error was caused by connection abort!";
+    warn "Don't know how to verify whether error was caused by connection abort!";
     undef;
 }
+
+# PgSQL does not support FOR UPDATE together with SELECT DISTINCT
+sub _ta_select { ''; }
 
 sub _parse_default_value
 {
@@ -285,10 +289,10 @@ sub _parse_default_value
     return $value;
 }
 
-# Copied from DBD::Pg
+# Cloned from DBD::Pg
 sub _PgPP_last_insert_id
 {
-    my ($dbh, $catalog, $schema, $table, $col, $attr) = @_;
+    my ($self, $dbh, $catalog, $schema, $table, $col, $attr) = @_;
 
     ## Our ultimate goal is to get a sequence
     my ($sth, $count, $SQL, $sequence);
@@ -300,6 +304,10 @@ sub _PgPP_last_insert_id
     $schema = '' if ! defined $schema;
     $table = '' if ! defined $table;
     my $cachename = "lii$table$schema";
+
+    my $version = $self->_db_handler->{pg_server_version} || 0;
+    my $old_ver = $version < 70300;
+    my $use_cat = $old_ver ? '' : 'pg_catalog.';
 
     if (defined $attr and length $attr) {
         ## If not a hash, assume it is a sequence name
@@ -329,7 +337,7 @@ sub _PgPP_last_insert_id
         my @args = ($table);
 
         ## Only 7.3 and up can use schemas
-        $schema = '' if $dbh->{private_dbdpg}{version} < 70300;
+        $schema = '' if( $old_ver );
 
         ## Make sure the table in question exists and grab its oid
         my ($schemajoin,$schemawhere) = ('','');
@@ -338,7 +346,7 @@ sub _PgPP_last_insert_id
             $schemawhere = "\n AND n.nspname = ?";
             push @args, $schema;
         }
-        $SQL = "SELECT c.oid FROM ${DBD::Pg::dr::CATALOG}pg_class c $schemajoin\n WHERE relname = ?$schemawhere";
+        $SQL = "SELECT c.oid FROM ${use_cat}pg_class c $schemajoin\n WHERE relname = ?$schemawhere";
         $sth = $dbh->prepare($SQL);
         $count = $sth->execute(@args);
         if (!defined $count or $count eq '0E0') {
@@ -350,7 +358,7 @@ sub _PgPP_last_insert_id
         my $oid = $sth->fetchall_arrayref()->[0][0];
         ## This table has a primary key. Is there a sequence associated with it via a unique, indexed column?
         $SQL = "SELECT a.attname, i.indisprimary, substring(d.adsrc for 128) AS def\n".
-            "FROM ${DBD::Pg::dr::CATALOG}pg_index i, ${DBD::Pg::dr::CATALOG}pg_attribute a, ${DBD::Pg::dr::CATALOG}pg_attrdef d\n ".
+            "FROM ${use_cat}pg_index i, ${use_cat}pg_attribute a, ${use_cat}pg_attrdef d\n ".
                 "WHERE i.indrelid = $oid AND d.adrelid=a.attrelid AND d.adnum=a.attnum\n".
                     "  AND a.attrelid=$oid AND i.indisunique IS TRUE\n".
                         "  AND a.atthasdef IS TRUE AND i.indkey[0]=a.attnum\n".

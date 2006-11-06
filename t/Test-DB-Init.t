@@ -32,6 +32,10 @@ if( Test::ORM->_db->isa( 'ORM::Db::DBI::SQLite' ) )
 ok( !$error->fatal, 'db_init' );
 print $error->text;
 
-$res = Test::ORM->_db->select( query=>'select count( distinct id ) as c from Dummy' );
+$res = Test::ORM->_db->select
+(
+    query => 'select count( distinct id ) as c from Dummy',
+);
+
 print $res->next_row->{c},"\n";
 $res = undef;

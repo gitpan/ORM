@@ -28,9 +28,19 @@
 
 package ORM::Cache;
 
-$VERSION = 0.8;
+$VERSION = 0.83;
 
-use Scalar::Util 'weaken';
+use vars '$use_weaken';
+
+BEGIN
+{
+    eval
+    {
+        require Scalar::Util;
+        import  Scalar::Util 'weaken';
+    };
+    $use_weaken = $@ ? 0 : 1;
+}
 
 my $cache_hit = 0;
 my $cache_all = 0;
@@ -87,13 +97,28 @@ sub add
 
     if( $id && !$self->{hash}{$id} )
     {
-        if( $self->{size} )
+        if( $use_weaken )
         {
-            $self->{array}[$self->{ptr}] = $obj;
-            $self->{ptr} = ( $self->{ptr} + 1 ) % $self->{size};
+            if( $self->{size} )
+            {
+                $self->{array}[$self->{ptr}] = $obj;
+                $self->{ptr} = ( $self->{ptr} + 1 ) % $self->{size};
+            }
+            $self->{hash}{$id} = $obj;
+            weaken $self->{hash}{$id};
         }
-        $self->{hash}{$id} = $obj;
-        weaken $self->{hash}{$id};
+        else
+        {
+            if( $self->{size} )
+            {
+                my $slot = \( $self->{array}[$self->{ptr}] );
+                delete $self->{hash}{ ${$slot}->id } if( $$slot );
+
+                $$slot             = $obj;
+                $self->{ptr}       = ( $self->{ptr} + 1 ) % $self->{size};
+                $self->{hash}{$id} = $obj;
+            }
+        }
     }
 }
 
@@ -102,7 +127,7 @@ sub delete
     my $self = shift;
     my $obj  = shift;
 
-    $obj && $obj->id && delete $self->{hash}{$obj->id};
+    $use_weaken && $obj && $obj->id && delete $self->{hash}{$obj->id};
 }
 
 sub clear_stat

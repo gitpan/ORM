@@ -25,6 +25,12 @@ $stat = Test::Dummy::Child2->stat
     filter  => (Test::Dummy::Child2->M->id == 416),
 );
 
-ok( !$e->fatal && $stat->[0]{ref} && $stat->[0]{ref}->id == 415 && $stat->[0]{self}->a eq 'aa', 'stat' );
+ok
+(
+    !$e->fatal && $stat->[0]{ref} 
+    && $stat->[0]{ref}->id == 415 
+    && $stat->[0]{self}->a eq 'aa',
+    'stat'
+);
 
 print $e->text;

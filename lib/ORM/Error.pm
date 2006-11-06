@@ -28,11 +28,14 @@
 
 package ORM::Error;
 
-#use base 'Exception::Class::Base';
+use Exception::Class;
+use base 'Exception::Class::Base';
+use overload 'fallback'=>1;
 
 $VERSION=0.83;
 
-#ORM::Error->Trace( 1 );
+ORM::Error->Trace( 1 );
+ORM::Error->RespectOverload( 1 );
 
 ##
 ## CONSTRUCTORS
@@ -41,8 +44,29 @@ $VERSION=0.83;
 sub new
 {
     my $class = shift;
-#    my $self  = $class->SUPER::new();
-    my $self  = bless {}, $class;
+    my $self  = $class->SUPER::new();
+
+    return $self;
+}
+
+sub new_fatal
+{
+    my $class = shift;
+    my $msg   = shift;
+    my $self  = $class->new();
+
+    $self->add_fatal( $msg );
+
+    return $self;
+}
+
+sub new_warn
+{
+    my $class = shift;
+    my $msg   = shift;
+    my $self  = $class->new();
+
+    $self->add_warn( $msg );
 
     return $self;
 }
@@ -150,7 +174,7 @@ sub upto
     }
     elsif( $self->fatal )
     {
-        # $self->throw;
+        $self->throw;
     }
 }
 
@@ -159,6 +183,7 @@ sub upto
 ##
 
 sub full_message { shift->short_text( @_ ); }
+
 sub short_text
 {
     my $self = shift;
@@ -168,6 +193,20 @@ sub short_text
     {
         $text .= "* $_->{comment}\n";
     }
+
+    return $text;
+}
+
+sub short_html
+{
+    my $self = shift;
+    my $text = '<ul class="linkmenu">';
+
+    for( @{$self->{list}} )
+    {
+        $text .= "<li>&nbsp;$_->{comment}</li>\n";
+    }
+    $text .= '</ul>';
 
     return $text;
 }

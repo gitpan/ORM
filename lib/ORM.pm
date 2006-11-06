@@ -28,11 +28,10 @@
 
 package ORM;
 
-use 5.008001;
+use 5.006001;
 use strict;
 use warnings;
 use Carp;
-use Scalar::Util 'weaken';
 use base 'Class::Data::Inheritable';
 
 use ORM::Error;
@@ -58,11 +57,7 @@ ORM->mk_classdata( '_history_class' );
 ORM->mk_classdata( '_default_prefer_lazy_load' );
 ORM->mk_classdata( '_emulate_foreign_keys' );
 ORM->mk_classdata( '_default_cache_size' );
-
-## We can not use Class::Data::Inheritable for storing
-## current transactions, because Class::Data::Inheritable
-## do not allow to create weaken references.
-my %ta;
+ORM->mk_classdata( '_current_transaction' );
 
 ##
 ## CONSTRUCTORS
@@ -113,6 +108,8 @@ sub new
         my $prop;
 
         bless $self, $class;
+
+        $self->{_ORM_tpm} = 1 if( $arg{temporary} );
 
         # Extract required DB properties from %arg
         for $prop ( $class->_not_mandatory_props )
@@ -410,21 +407,8 @@ sub new_transaction
     my $class  = shift;
     my $iclass = $class->initial_class;
     my %arg    = @_;
-    my $my_ta;
 
-    if( $ta{$iclass} )
-    {
-        $my_ta = ORM::Ta->new;
-    }
-    else
-    {
-        $my_ta       = ORM::Ta->new( db=>$class->_db, error=>$arg{error} );
-        $ta{$iclass} = $my_ta;
-
-        weaken $ta{$iclass};
-    }
-
-    return $my_ta;
+    ORM::Ta->new( class=>$iclass, error=>$arg{error} );
 }
 
 ## use: $self->update
@@ -509,9 +493,9 @@ sub update
         }
     }
     # User validations
-    unless( $error->fatal )
+    if( %changed_prop && !$error->fatal )
     {
-        $self->_validate_prop( prop=>\%changed_prop, method=>'update', error=>$error );
+        $self->_validate_prop( prop=>\%changed_prop, old=>\%old_prop, method=>'update', error=>$error );
     }
     # Detect data changes again to consider changes in _validate_prop
     unless( $error->fatal )
@@ -683,7 +667,7 @@ sub finish_loading
         my $error = ORM::Error->new;
         my $data  = $class->_db->select_tables
         (
-            id     => $self->id,
+            id     => $self->qc( $self->id ),
             tables => $self->{_ORM_missing_tables},
             error  => $error,
         );
@@ -727,17 +711,25 @@ sub finish_loading
     if( $new_class && $new_class ne $class )
     {
         $class->_load_ORM_class( $new_class );
-        bless $self, $new_class;
 
-        my $base_class_tables = $class->_db_tables_count;
-        my $class_tables      = $new_class->_db_tables_count;
-
-        for( my $i=$base_class_tables; $i<$class_tables; $i++ )
+        if( UNIVERSAL::isa( $new_class, $class ) )
         {
-            $self->{_ORM_missing_tables}{$new_class->_db_table($i)} = 1;
-        }
+            bless $self, $new_class;
 
-        $self->finish_loading( error=>$arg{error} ) unless( defined $prop );
+            my $base_class_tables = $class->_db_tables_count;
+            my $class_tables      = $new_class->_db_tables_count;
+
+            for( my $i=$base_class_tables; $i<$class_tables; $i++ )
+            {
+                $self->{_ORM_missing_tables}{$new_class->_db_table($i)} = 1;
+            }
+
+            $self->finish_loading( error=>$arg{error} ) unless( defined $prop );
+        }
+        else
+        {
+            $self->_rebless_to_broken( deleted=>1 );
+        }
     }
 }
 
@@ -747,7 +739,7 @@ sub finish_loading
 
 sub id           { $_[0]->{_ORM_data}{id}; }
 sub class        { ref $_[0] || $_[0]; }
-sub is_temporary { ! $_[0]->{_ORM_data}{id}; }
+sub is_temporary { $_[0]->{_ORM_tpm}; }
 
 sub __ORM_db_value { $_[0]->{_ORM_data}{id}; }
 sub __ORM_new_db_value
@@ -1252,7 +1244,7 @@ sub AUTOLOAD
         my $self = shift;
         my %arg  = @_;
 
-        die "Called undefined static method '$ORM::AUTOLOAD' of class '$self'" unless( ref $self );
+        croak "Called undefined static method '$ORM::AUTOLOAD' of class '$self'" unless( ref $self );
 
         $self->_property( name=>$prop, %arg );
     }
@@ -1326,6 +1318,7 @@ sub _rebless_to_broken
         $self->{error} = $arg{error};
     }
 
+    delete $self->{_ORM_tmp};
     delete $self->{_ORM_data};
     delete $self->{_ORM_cache};
     delete $self->{_ORM_missing_tables};
@@ -1412,7 +1405,7 @@ sub _normalize_prop_to_db_value
                 value => $prop_value,
                 error => $error,
             );
-            $prop_value = $obj ? $obj->__ORM_db_value : undef;
+            $prop_value = defined $obj ? $obj->__ORM_db_value : undef;
         }
         elsif( UNIVERSAL::isa( $prop_ref, $class->_prop_class( $prop_name ) ) )
         {
@@ -1493,6 +1486,7 @@ sub _init
     $class->_default_prefer_lazy_load( $arg{prefer_lazy_load} );
     $class->_emulate_foreign_keys( $arg{emulate_foreign_keys} );
     $class->_default_cache_size( $arg{default_cache_size} );
+    $class->_current_transaction( undef );
 }
 
 ## use: $base_class->_derive
@@ -1849,7 +1843,7 @@ sub _load_ORM_class
 
 sub DESTROY
 {
-    $_[0]->_cache && $_[0]->_cache->delete( $_[0] );
+	exists $_[0]->_class_hier->{PRIMARY_CLASS} && $_[0]->_cache && $_[0]->_cache->delete( $_[0] );
 }
 
 1;

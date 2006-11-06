@@ -77,12 +77,12 @@ sub AUTOLOAD
                 }
                 else
                 {
-                    $self = $self->{prop}->$prop( @_ );
+                    $self->{prop} = $self->{prop}->$prop( @_ );
                 }
             }
             else
             {
-                $self = $self->{prop}->$prop( @_ );
+                $self->{prop} = $self->{prop}->$prop( @_ );
             }
         }
     }
