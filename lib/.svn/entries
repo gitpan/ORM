@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="38"
+   name=""
+   committed-date="2007-03-26T21:06:28.351516Z"
+   url="https://perlorm.svn.sourceforge.net/svnroot/perlorm/tags/ORM-0.85/lib"
+   last-author="akimov_alexey"
+   kind="dir"
+   uuid="ed0020b0-0f0e-0410-a30b-c19c97c1c62c"
+   repos="https://perlorm.svn.sourceforge.net/svnroot/perlorm"
+   revision="39"/>
+<entry
+   committed-rev="38"
+   name="ORM.pm"
+   text-time="2007-03-26T21:25:45.296375Z"
+   committed-date="2007-03-26T21:06:28.351516Z"
+   checksum="a9f317a614ef8aa87fa1ea3f1d17f031"
+   last-author="akimov_alexey"
+   kind="file"
+   prop-time="2007-03-26T21:25:41.155750Z"/>
+<entry
+   name="ORM"
+   kind="dir"/>
+<entry
+   committed-rev="1"
+   name="ORM.pod"
+   text-time="2007-03-26T21:25:45.296375Z"
+   committed-date="2006-03-15T19:51:04.944877Z"
+   checksum="3a121bba81cf8c24d862eeaa7521cf89"
+   last-author="akimov_alexey"
+   kind="file"
+   prop-time="2007-03-26T21:25:45.265125Z"/>
+</wc-entries>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wc-entries
+   xmlns="svn:">
+<entry
+   committed-rev="10"
+   name=""
+   committed-date="2006-03-25T12:54:50.824808Z"
+   url="https://perlorm.svn.sourceforge.net/svnroot/perlorm/tags/ORM-0.85/lib/ORM/Meta"
+   last-author="akimov_alexey"
+   kind="dir"
+   uuid="ed0020b0-0f0e-0410-a30b-c19c97c1c62c"
+   repos="https://perlorm.svn.sourceforge.net/svnroot/perlorm"
+   revision="39"/>
+<entry
+   committed-rev="10"
+   name="Array.pm"
+   text-time="2007-03-26T21:25:44.437000Z"
+   committed-date="2006-03-25T12:54:50.824808Z"
+   checksum="56224c7a5fcb72e26b5f915a2e7ebccf"
+   last-author="akimov_alexey"
+   kind="file"
+   prop-time="2007-03-26T21:25:44.202625Z"/>
+<entry
+   name="ORM"
+   kind="dir"/>
+</wc-entries>
